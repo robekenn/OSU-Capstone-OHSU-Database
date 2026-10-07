@@ -110,6 +110,11 @@ Do not implement automated approvals, annual-review policy details, or notificat
 ## Data safety and confidentiality
 
 Use the most restrictive rule when classification is uncertain. Ask the AI Coordinator or project partner before moving material to a less restrictive tier.
+- Never read, open, or print .env files, files under secrets/, or any file matching *.key, *.pem.
+- Never write credentials, connection strings, or tokens into code, tests, logs, or commit messages; use environment variables.
+- Test and seed data must be synthetic. Never generate fixtures from or ask for real simulation records, learner names, or session recordings.
+- Do not add OHSU internal hostnames or endpoints to committed files; read them from configuration.
+- If you encounter what looks like real personal or patient data, stop and tell the user instead of processing it.
 
 ### Open material
 
