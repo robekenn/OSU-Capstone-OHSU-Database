@@ -1,9 +1,19 @@
+## Branching
+- `main` is always deployable. Never push directly to it.
+- Branch from `main`, named `type/issue-number-short-name`
+  (examples: `feature/01-search-bar`, `fix/35-login-redirect`, `docs/33-readme-setup`)
+
+## Pull Request
+- Link the issue: "Close 01"
+- One issue, one purpose per PR
+- Required: CI passing + one approval from someone other than the author
+- New commits after approval dismiss the approval
+
 ## Definition of Done:
 A change can merge only when:
-- Tests pass: enforced by the CI.
+- CI passes (lint, tests, build)
 - One teammate has approved the pull request
-- Docs updated.
-
+- Docs updated
 
 ## The Contribution Norm:
 - Work lives in: our GitHub Repo and GitHub Issues.
