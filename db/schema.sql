@@ -80,7 +80,7 @@ CREATE TABLE case_version_outcome (
   PRIMARY KEY (case_version_id, outcome_id)
 );
 
--- QUALITY
+
 CREATE TABLE review (
   id SERIAL PRIMARY KEY,
   case_version_id INT NOT NULL REFERENCES case_version(id),
@@ -90,8 +90,7 @@ CREATE TABLE review (
   decided_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
--- INDEXES: Postgres does not index foreign keys automatically.
--- These speed up the most common lookups.
+
 CREATE INDEX idx_case_version_case ON case_version(case_id);
 CREATE INDEX idx_case_use_campus_course ON case_use(campus_id, course_id);
 CREATE INDEX idx_review_version ON review(case_version_id);
