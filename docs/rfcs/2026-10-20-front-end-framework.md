@@ -1,0 +1,60 @@
+<!-- docs/rfcs/2026-10-20-front-end-framework.md -->
+
+# RFC: Front End Framewith with React and Typescript (Vite)
+
+| Field | Value |
+| --- | --- |
+| Author | Logan Moskal |
+| Date | 2026-10-20 |
+| Status | Draft |
+| Decision Date | (fill when decided) |
+| Deciders | (who agreed to the outcome) |
+| Superseded By | |
+
+## Problem and Context
+
+The OHSU School of Nursing simulation database needs a browser front end that faculty, simulation operations specialists, simulated-patient actors, students, clinical faculty, and partner-school staff will use to create, import, search, review and adapt simulation cases.
+
+A case modeled on our two given simulation templates is structured in many sections: multi-value fields, multiple scenario verisons, checkbox lists, medication tables, and progression grids that are facilitator access only.
+
+The decision is needed now because every screen we code on is written in whatever we choose. Switching later means rewriting the whole UI, and next year's team, or OHSU inherits whatever we leave them.
+
+## Options
+
+At least three credible options, **including "do nothing"**. Give each option a short name and an account of its real costs. An option you would be embarrassed to recommend is not credible; a strawman weakens the whole document.
+
+### Option A: [Name]
+
+Description, benefits, costs.
+
+### Option B: [Name]
+
+Description, benefits, costs.
+
+### Option C: Do Nothing
+
+What staying on the current path actually costs, and when that cost arrives.
+
+## Analysis
+
+The technical tradeoffs that matter for this decision: performance, complexity, maintainability, security, cost. Argue from evidence (benchmarks, prototypes, documentation, prior art) and cite what you relied on so a reviewer can check it. Acknowledge what you are uncertain about.
+
+## Recommendation and Verification Plan
+
+Which option you propose and why it wins the analysis above. Then, concretely: how will the team know it worked? List the tests, metrics, or acceptance criteria that would detect failure, and when they will be checked.
+
+## Constraints
+
+Licensing, data use, IP, and the partner confidentiality boundary as they bear on this decision. If none apply, say so explicitly and briefly explain why.
+
+## Delegation and Validation
+
+- **What you handed to AI tools** on this decision, whether that was the analysis, the prototype, the tests, or the writing.
+- **What checks made that reasonable**: tests, CI, review gates, a staging environment, a rollback path. Name the ones that actually exist in your repo, not the ones you intend to build.
+- **Where you stopped and validated the result yourself, and why those points.** If this decision is hard to reverse, say what you personally checked before committing to it.
+
+What is assessed is in the [AI policy](https://capstone.alexulbrich.com/assignments/introduction/#ai-policy-applies-to-every-assignment).
+
+## Decision
+
+Accepted, rejected, or superseded, with the date and who chaired the decision. If superseded, link the RFC that replaces this one.
