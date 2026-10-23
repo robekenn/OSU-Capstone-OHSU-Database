@@ -228,6 +228,13 @@ At minimum, test applicable cases for:
 
 Before requesting review, run the documented formatter, linter, type checks, tests, migrations, and build. If a command does not exist yet, say so in the pull request rather than claiming validation occurred. The Quality Owner has final responsibility for maintaining this section and the project quality gate.
 
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+
+- **Secrets and sensitive files:** fails if `.env` files, `secrets/`, `*.pem` or `*.key` are tracked, and scans the full Git history with gitleaks.
+- **App lint, test, build:** runs `npm ci` and then the `lint`, `typecheck`, `test` and `build` scripts when they exist. It is skipped with a notice until a root `package.json` exists. If the app is split into folders, update the workflow's paths.
+
 ## Git and review practices
 
 - Work from a focused issue or clearly stated task.
