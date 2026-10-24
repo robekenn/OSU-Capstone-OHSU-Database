@@ -26,8 +26,8 @@
 
 **Amit**
 - owned: Created the database using SQL. https://github.com/robekenn/OSU-Capstone-OHSU-Database/blob/main/db/schema.sql
-- reviewed: [TODO: Amit, or "No reviews this sprint."]
-- shipped:[TODO: Amit]
+- reviewed: I have not reviewed any pull request yet this sprint.
+- shipped: I finished the 11-table schema for the backend of the project. I have not tested it currently but was reviewed by me and Kenneth multiple times. 
 
 **William**
 - owned: No document this time
