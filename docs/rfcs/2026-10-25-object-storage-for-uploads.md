@@ -6,7 +6,7 @@
 | Field | Value |
 | --- | --- |
 | Author |William Zhao |
-| Date | YYYY-MM-DD |
+| Date | 10-25-2026|
 | Status | Proposed / Accepted / Rejected / Superseded |
 | Decision Date | (fill when decided) |
 | Deciders | (who agreed to the outcome) |
