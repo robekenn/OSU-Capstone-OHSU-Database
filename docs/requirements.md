@@ -20,13 +20,14 @@ NFR-2: schema.sql runs without errors on an empty PostgreSQL database.
 NFR-3: Saving a case takes under 10 seconds. It will be measured on the templates.
 
 ## Constraints
-C-1: NEED TO WORK ON
+C-1: PostgreSQL, Node.js + Express (TypeScript), React + TypeScript. 
+C-2: Sign-in through OHSU OIDC.
+C-3: No real patient data. 
 
 ## Success Metrics
 - Faculty have entered at least 50 cases by the end of term 3.
 - Faculty from at least 2 campuses have signed in.
 - Finding a known case by course and outcome takes 30 seconds in a test with 3 faculty.
-- ADD MORE
 
 ## Non-goals
 - Co-editing one case simultaneously.
@@ -38,7 +39,7 @@ C-1: NEED TO WORK ON
 OQ-1: Does OHSU IT approve AWS hosting, and which OIDC identity provider do we use? Owner: Calvin, asks IT. 
 OQ-2: What are the exact roles and permissions? 
 How many cases, faculty, and campuses should it handle? Owner: Calvin, before NFR-1 is measured.
-Are the success-metric targets and non-goals correct? Owner: the team asks Calvin. 
+Are the success-metric targets and non-goals correct? Owner: The team asks Calvin. 
 
 
 
