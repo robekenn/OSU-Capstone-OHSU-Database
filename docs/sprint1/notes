@@ -1,83 +1,49 @@
 # Sprint Note: Sprint 1, OHSU Simulation Database
 
-<!-- One page maximum. Each numbered section is graded pass/fail (20 points each).
-     The evidence may be AI-generated from your repo history and board.
-     Two things must be human-written: section 5, and the "shipped" sentence
-     in each contribution line. Those are the parts anyone reads. -->
-
-**Team: OHSU Simulation Database** | **Sprint dates: ** | **Date submitted:**
+**Team:** OHSU Simulation Database | **Sprint dates:** Oct 6–23, 2026 | **Date submitted:** Oct 23, 2026
 
 ## 1. Working Software Evidence
 
-A URL, tagged release, or demo video link, plus a link to the CI run. If nothing works yet, say so plainly and say why.
-If a video replaced the live demo (a missed check-in, or a TA who could not meet), link it here: media.oregonstate.edu, unlisted, captions on, one timestamp per
-student.
-
-- Deployed URL / release tag / demo video: https://github.com/robekenn/OSU-Capstone-OHSU-Database — At this moment we do not have any demos because we have been
-  focusing on the architecture of our product. We plan by the 2nd sprint to have a base website working, with minimal features in progress.
-- Demo video timestamps (one per student), only if a video replaced the live demo:
-- CI run:
+- Deployed URL / release tag / demo video: https://github.com/robekenn/OSU-Capstone-OHSU-Database. At this moment we do not have any demos because we have been focusing on the architecture of our product. We plan by the 2nd sprint to have a base website working, with minimal features in progress.
+- CI run: CI not set up yet
 
 ## 2. What Got Done
 
-Everything the team finished this sprint. Each item concrete (someone could go look at it) and consequential
-(the project is meaningfully further along). It does not have to be code; non-code work counts when someone can open it (the repository, an issue or ticket, your 
-partner's system). Activity without a result does not belong here: "worked on the API" and "researched options" are not done things.
-
 - Board link: https://github.com/users/robekenn/projects/4
-- Done this sprint:
-- Designed and documented the database schema. It consists of 11 tables. It covers case versioning, outcome mapping, and reviews. This is based on the template
-  Word document given to us from the project partner.
--
+- Done this sprint: Designed and documented the database schema. It consists of 11 tables. It covers case versioning, outcome mapping, and reviews. This is based on the template Word document given to us from the project partner.
 
 ## 3. Top Risk and One Decision Needed
 
-The single biggest threat to shipping (in fall, before the Definition of Shipped exists, to the term gate), and one concrete decision the team needs from the 
-partner, the instruction team, or itself. Take the risk from the top of your `docs/risks.md`.
-
-- Top risk: The biggest risk is that OHSU has not confirmed hosting and logging in. So as a group, we decided on AWS and OIDC are the login options, but we are 
-  waiting on OHSU's IT team to give us a thumbs up. This does not allow us to deploy or test real sign-in until they answer. If we cannot deploy or test it, we 
-  cannot show a working, hosted system.
-- Decision needed (from whom, by when): The decision we need from the project partner if OHSU IT approved hosting on AWS and OIDC sign-in.
+- Top risk: The biggest risk is that OHSU has not confirmed hosting and logging in. So as a group, we decided on AWS for hosting and OIDC for sign-in, but we are waiting on OHSU's IT team to give us a thumbs up. This does not allow us to deploy or test real sign-in until they answer. If we cannot deploy or test it, we cannot show a working, hosted system.
+- Decision needed (from whom, by when): The decision we need from the project partner is whether OHSU IT approves hosting on AWS and OIDC sign-in, by [TODO: date].
 
 ## 4. Contribution Lines
 
-One line per student, three parts:
-  (a) the work you owned this sprint, one or more pieces, each with a link or ID (NDA teams: IDs only);
-  (b) whose work you reviewed (a pull request, a spec, a document) and the one change you asked for, named specifically ("LGTM" is not a review);
-  (c) one human-written sentence: the most consequential thing you shipped, and how the team knows it works.
-If a student has nothing this sprint, their line says so plainly. Mechanical changes (formatter runs, lockfile bumps,
-generated files, bulk renames) are normal work but are not evidence; leave them out.
-
 **Kenneth**
-- owned: Created AGENTS.md [https://github.com/robekenn/OSU-Capstone-OHSU-Database/blob/main/AGENTS.md], created "Github Project" for the team [https://github.com/users/robekenn/projects/4].
-- reviewed: I review Amit's work on the database schema for SQL, it looked good so I approved it.
+- owned: Created majority of AGENTS.md [https://github.com/robekenn/OSU-Capstone-OHSU-Database/blob/main/AGENTS.md], created "Github Project" for the team [https://github.com/users/robekenn/projects/4].
+- reviewed: I reviewed Amit's work on the database schema for SQL, it looked good so I approved it. [TODO: Kenneth, name the one specific change you asked for]
 - shipped: We have yet to ship anything, but the most impactful thing that I have done was research into why we should be using AWS.
 
 **Amit**
 - owned: Created the database using SQL. https://github.com/robekenn/OSU-Capstone-OHSU-Database/blob/main/db/schema.sql
-- reviewed:
-- shipped:
+- reviewed: I have not reviewed any pull request yet this sprint.
+- shipped: I finished the 11-table schema for the backend of the project. I have not tested it currently but was reviewed by me and Kenneth multiple times. 
 
 **William**
 - owned: No document this time
-- reviewed: I reviewed Kenneths' work on Web hosting RFC, it looked good so I approved it.
+- reviewed: I reviewed Kenneth's work on Web hosting RFC, it looked good so I approved it. [TODO: William, name the one specific change you asked for]
 - shipped: I was researching customer discussions, project requirements, and thought about the technical direction.
 
 **Logan**
-- owned: AGENTS.md [https://github.com/robekenn/OSU-Capstone-OHSU-Database/blob/main/AGENTS.md]: guide for AI coding, sources of truth, data confidentiality tiers, security and authorization. Front end framework: decision RFC [docs/rfcs/2026-10-20-frontend-framework].
+- owned: Wrote the data-safety rules in AGENTS.md (secrets and .env handling, no credentials in code, synthetic-only test data, stop on real patient data) [https://github.com/robekenn/OSU-Capstone-OHSU-Database/commit/2268995]. Front-end framework decision RFC [docs/rfcs/2026-10-20-frontend-framework].
 - reviewed: No pull request reviews this sprint.
-- shipped: My AGENTS.md data confidentiality tiers have had the most impact during the brainstorming phases of this sprint, as they state rules for what can and cannot be input into an AI agent during the project, and teammates have looked over these tiers and reviewed the PR that added them.
+- shipped: My data safety rules have had the most impact during the brainstorming phases of this sprint, as they set what can and cannot be input into an AI agent during the project, and teammates have looked over these rules and reviewed them diligently.
 
-**Decision chaired this sprint:** who drove which decision to a conclusion. Over a term everyone should appear here at least once.
+**Decision chaired this sprint:** [TODO: who drove which decision, e.g. "Name: tech stack table"]
 
--
+## 5. Judgment Layer
 
-## 5. Judgment Layer (human-written, about five lines)
-
-What the team learned this sprint and what it changes about the plan.
-
-This sprint, we learned what actually needs to be done by us every sprint. We felt overwhelmed by the assignments due the week and it was hard for us to understand
+This sprint, we learned what actually needs to be done by us every sprint. We felt overwhelmed by the assignments due that week and it was hard for us to understand
 what needed to be done by sprint 1. This project has little guidance, so it is being built from scratch. This made it difficult to understand where to start. We 
-also just met out with our project partner last week, which made it harder to understand what we should have done. But we learned that we need to get started 
+also just met with our project partner last week, which made it harder to understand what we should have done. But we learned that we need to get started 
 earlier and have a working product by hopefully next sprint to show to the TA and project partner.
