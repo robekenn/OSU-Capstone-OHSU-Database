@@ -233,6 +233,7 @@ Before requesting review, run the documented formatter, linter, type checks, tes
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`:
 
 - **Secrets and sensitive files:** fails if `.env` files, `secrets/`, `*.pem` or `*.key` are tracked, and scans the full Git history with gitleaks.
+- **Database schema and tests:** starts Postgres 16.15, loads `db/schema.sql` into an empty database, and runs every `db/tests/test_*.sql` file. Run the same check locally with `bash db/test.sh` (set `PGHOST`, `PGUSER` and so on to point at your Postgres). When you change `db/schema.sql`, add or update a test in `db/tests/` that would fail if the change were reverted. Test data must be synthetic.
 - **App lint, test, build:** runs `npm ci` and then the `lint`, `typecheck`, `test` and `build` scripts when they exist. It is skipped with a notice until a root `package.json` exists. If the app is split into folders, update the workflow's paths.
 
 ## Git and review practices

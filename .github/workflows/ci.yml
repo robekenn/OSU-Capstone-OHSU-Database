@@ -49,6 +49,38 @@ jobs:
         run: |
           "$RUNNER_TEMP/gitleaks" git . --redact --no-banner --verbose
 
+  db:
+    name: Database schema and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        # Pinned to an exact release so a new Postgres version can't change
+        # results without a pull request. Bump it on purpose.
+        image: postgres:16.15
+        env:
+          # Throwaway container that exists only for this job and holds only
+          # synthetic test data, so there is no password to store or leak.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+    steps:
+      - uses: actions/checkout@v5
+
+      # Loads db/schema.sql into an empty database (NFR-2), then runs
+      # db/tests/test_*.sql. Fails if the schema errors or any test fails.
+      - name: Load schema and run database tests
+        run: bash db/test.sh
+
   app:
     name: App lint, test, build
     runs-on: ubuntu-latest
