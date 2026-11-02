@@ -1,0 +1,11 @@
+{
+    "name": "ohsu-simulation-database",
+    "private": true,
+    "workspaces": ["client", "server"],
+    "scripts": {
+      "lint": "npm run lint --workspaces --if-present",
+      "typecheck": "npm run typecheck --workspaces --if-present",
+      "test": "npm run test --workspaces --if-present",
+      "build": "npm run build --workspaces --if-present"
+    }
+  }
