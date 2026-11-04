@@ -1,5 +1,8 @@
 import express from 'express'
+import { adminRouter } from './routes/admin.js'
+import { authRouter } from './routes/auth.js'
 import { casesRouter } from './routes/cases.js'
+import { requireAuth } from './auth.js'
 
 export function createApp() {
   const app = express()
@@ -10,7 +13,9 @@ export function createApp() {
     res.json({ status: 'ok' })
   })
 
-  app.use('/api/cases', casesRouter())
+  app.use('/api/auth', authRouter())
+  app.use('/api/admin', adminRouter())
+  app.use('/api/cases', requireAuth, casesRouter())
 
   // Any other /api URL gets a 404 as JSON.
   app.use('/api', (_req, res) => {

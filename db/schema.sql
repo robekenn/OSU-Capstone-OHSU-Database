@@ -9,7 +9,9 @@ CREATE TABLE app_user (
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   campus_id INT REFERENCES campus(id),
-  role TEXT NOT NULL
+  role TEXT NOT NULL,
+  system_role TEXT NOT NULL DEFAULT 'user'
+    CHECK (system_role IN ('user', 'admin', 'owner'))
 );
 
 CREATE TABLE course (

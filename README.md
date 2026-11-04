@@ -9,8 +9,9 @@ Early development. The repository currently contains:
 - The PostgreSQL schema for cases, versions, outcome mapping, tags, campus use and reviews (`db/schema.sql`)
 - Automated tests for that schema (`db/tests/`), run in CI on every pull request
 - Requirements and recorded design decisions (`docs/`)
+- A React client and Express API for creating simulation cases
 
-There is no web application yet. The planned stack is PostgreSQL, Node.js + Express (TypeScript) and React + TypeScript, with sign-in through OHSU's OIDC provider (see `docs/requirements.md`, Constraints). Hosting is waiting on OHSU IT approval. This README will gain app setup steps when the app exists.
+The current development deployment uses Vercel and Supabase PostgreSQL. Supabase Auth provides temporary email/password authentication while OHSU OIDC remains an open partner decision; the API maps each external identity by its stable subject and enforces authorization server-side.
 
 ## Quickstart
 
@@ -63,7 +64,8 @@ PASS  test_cases_and_versions.sql
 PASS  test_filters.sql
 PASS  test_outcome_mapping.sql
 PASS  test_reviews_users_tags.sql
-4 passed, 0 failed
+PASS  test_system_roles.sql
+5 passed, 0 failed
 ```
 
 The `NOTICE` line is normal. The script creates a temporary database named `ohsu_sim_test`, loads the schema, runs the tests and drops the database when it finishes.
@@ -81,6 +83,25 @@ psql -d ohsu_sim_dev -c '\dt'
 With Docker, run the same commands inside the container, for example `docker exec ohsu-pg createdb -U postgres ohsu_sim_dev`, and use `/repo/db/schema.sql` as the file path.
 
 Use only synthetic data in any database you create. See [Data safety](#data-safety).
+
+### 4. Run the web application
+
+Load `db/schema.sql` into a fresh database. For a database created before the login feature, apply `db/migrations/001_add_system_role.sql` once.
+
+Copy `server/.env.example` to `server/.env` and `client/.env.example` to `client/.env`, then replace the placeholders with your local database and Supabase project values. Both `.env` files are ignored by Git and must never be committed.
+
+```bash
+npm install
+npm run dev --workspace server
+```
+
+In a second terminal:
+
+```bash
+npm run dev --workspace client
+```
+
+The first authenticated person mapped into an otherwise unclaimed application database becomes its Owner. Later signups receive ordinary User access. Owners can manage Owners and Admins; Admins can add or remove Admin access but cannot manage Owners.
 
 ### Troubleshooting
 
