@@ -1,9 +1,11 @@
 import pg from 'pg'
 
-// Read the connection string from the environment. It lives in server/.env, never in code.
-const connectionString = process.env.DATABASE_URL
+// Local setup uses DATABASE_URL; Vercel's Supabase integration provides POSTGRES_URL.
+const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL
 if (!connectionString) {
-  throw new Error('DATABASE_URL is required. Copy server/.env.example to server/.env.')
+  throw new Error(
+    'A database connection is required. Set DATABASE_URL locally or connect Supabase on Vercel.',
+  )
 }
 
 // A pool keeps a few connections open and reuses them for each request.
