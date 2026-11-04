@@ -1,0 +1,10 @@
+.case-form { max-width: 960px; margin: 0 auto; padding: 1rem; text-align: left; }
+.case-form .field { margin: 0 0 1rem; }
+.case-form label, .case-form legend { display: block; font-weight: bold; }
+.case-form .option { display: inline-block; font-weight: normal; margin-right: 1rem; }
+.case-form input[type='text'], .case-form textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.case-form textarea { min-height: 5rem; }
+.case-form .help { margin: 0.25rem 0; font-size: 0.9rem; }
+.case-form .error { color: #b00020; font-weight: bold; }
+.case-form .table-wrap { overflow-x: auto; }
+.case-form td, .case-form th { vertical-align: top; padding: 0.25rem; }
