@@ -1,7 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc -p tsconfig.build.json",
@@ -26,7 +26,7 @@
     "oxlint": "^1.90.0",
     "supertest": "^7.3.1",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2",
+    "typescript": "~6.0.3",
     "vitest": "^5.0.5"
   }
 }

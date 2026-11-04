@@ -1,10 +1,28 @@
 import pg from 'pg'
 
-// Read the connection string from the environment. It lives in server/.env, never in code.
-const connectionString = process.env.DATABASE_URL
-if (!connectionString) {
-  throw new Error('DATABASE_URL is required. Copy server/.env.example to server/.env.')
+// Local setup uses DATABASE_URL; Vercel's Supabase integration provides POSTGRES_URL.
+const rawConnectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL
+if (!rawConnectionString) {
+  throw new Error(
+    'A database connection is required. Set DATABASE_URL locally or connect Supabase on Vercel.',
+  )
 }
+
+function vercelConnectionString(value: string) {
+  const url = new URL(value)
+
+  // Supabase supplies sslmode=require. pg 8.22+ otherwise interprets that as
+  // verify-full, while Supabase documents standard libpq "require" semantics.
+  if (url.searchParams.get('sslmode') === 'require') {
+    url.searchParams.set('uselibpqcompat', 'true')
+  }
+
+  return url.toString()
+}
+
+const connectionString = process.env.DATABASE_URL
+  ? rawConnectionString
+  : vercelConnectionString(rawConnectionString)
 
 // A pool keeps a few connections open and reuses them for each request.
 export const pool = new pg.Pool({ connectionString })

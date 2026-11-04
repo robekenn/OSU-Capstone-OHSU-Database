@@ -17,7 +17,6 @@ export function createApp() {
     res.status(404).json({ error: 'not_found' })
   })
 
-
   // Catches errors thrown in routes. It never sends details back or logs request bodies,
   // because those can hold case content.
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -28,3 +27,6 @@ export function createApp() {
 
   return app
 }
+
+// Vercel's Express runtime loads the default export as the request handler.
+export default createApp()
