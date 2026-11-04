@@ -1,0 +1,14 @@
+.case-nav { display: flex; gap: 1.5rem; padding: 1rem; border-bottom: 1px solid var(--border); }
+.case-nav a { color: var(--text-h); }
+.case-nav a[aria-current='page'] { font-weight: bold; text-decoration-thickness: 3px; }
+.cases-page { max-width: 960px; margin: 0 auto; padding: 1rem; text-align: left; }
+.cases-page p { margin-top: 1rem; }
+.cases-page button { font: inherit; cursor: pointer; }
+.cases-page button:disabled { cursor: wait; }
+.cases-table-wrap { overflow-x: auto; margin-top: 1rem; }
+.cases-table { width: 100%; border-collapse: collapse; }
+.cases-table caption { text-align: left; padding-bottom: 0.5rem; }
+.cases-table th, .cases-table td { padding: 0.75rem; border-bottom: 1px solid var(--border); text-align: left; overflow-wrap: anywhere; }
+:focus-visible { outline: 3px solid var(--text-h); outline-offset: 3px; }
+.skip-link { position: absolute; left: 1rem; top: -10rem; padding: 0.5rem; background: var(--bg); color: var(--text-h); }
+.skip-link:focus { top: 0.5rem; }

@@ -1,5 +1,8 @@
 # OHSU Simulation Database
 
+For the new-case → cases-list demo, client checks, and the current API contract,
+see [Cases list demo (#37)](docs/issue-37-demo.md).
+
 A shared database where OHSU School of Nursing faculty can create, find, review, adapt and maintain simulation cases across campuses. Cases follow a standardized template and are searchable by course, campus, learning outcome and other curricular metadata, with version history and peer review.
 
 ## Project status
