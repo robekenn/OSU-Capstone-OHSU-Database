@@ -8,10 +8,9 @@ are explicit. Status is text; the table has a caption and column headers.
 Requests are aborted when leaving the page. No database, storage, deployment,
 or authorization changes are included.
 
-The small navigation in `App.tsx` makes `/new` and `/cases` reachable and
-redirects `/` to `/cases`, using the already installed React Router. Coordinate
-this shared entry point with issue #35; that task can replace the shell while
-retaining both page components. The new-case form is unchanged. Search is an
+The app shell from issue #35 (`client/src/components/Layout.tsx`) provides the
+skip link and the header links to `/new` and `/cases`; `App.tsx` redirects `/`
+to `/cases`. The new-case form is unchanged. Search is an
 optional stretch goal in #37 and is deferred.
 
 The API returns an array of `{ id, title, status, updatedAt }`. Status and time
