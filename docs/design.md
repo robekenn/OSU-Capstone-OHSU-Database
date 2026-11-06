@@ -1,7 +1,7 @@
 # OHSU Simulation Case Database — System Design
 
 **Status:** Draft  
-**Last updated:** 2026-10-28  
+**Last updated:** 2026-11-05  
 **Scope:** Current repository state and the next implementation phase
 
 This document is the shared technical design for the OHSU Simulation Case Database. It distinguishes implemented behavior from planned or pending decisions so that the team does not treat an RFC recommendation as deployed architecture.
@@ -16,7 +16,7 @@ This document is the shared technical design for the OHSU Simulation Case Databa
 
 The system will give OHSU School of Nursing faculty a central place to create, find, review, adapt, and maintain simulation cases across campuses. A case has stable identity and one or more immutable versions. Versions can be tagged, associated with learning outcomes, submitted for peer review, approved, exported, and superseded without erasing earlier history.
 
-The repository currently contains an **implemented PostgreSQL schema, database tests, and CI**, but no web application. The intended application stack is a **planned React and TypeScript client** with a **planned Node.js, Express, and TypeScript API**. Authentication must use OHSU OpenID Connect (OIDC). The exact identity-provider configuration and production hosting remain **pending OHSU IT approval**. Private S3-compatible object storage and an AWS deployment have RFC recommendations, but neither should be described as accepted or implemented yet.
+The repository currently contains an **implemented PostgreSQL schema, database tests, and CI**, plus an **initial React and TypeScript client** (app shell, New case form, and a Cases list with search and filters) and an **initial Node.js, Express, and TypeScript API** (health check, list and filter cases, create case, and course/campus/outcome lookup lists). Most of the API contract in §3.1, and all authentication and authorization, are still **planned**. Authentication must use OHSU OpenID Connect (OIDC). The exact identity-provider configuration and production hosting remain **pending OHSU IT approval**. Private S3-compatible object storage and an AWS deployment have RFC recommendations, but neither should be described as accepted or implemented yet.
 
 The first useful release should support the complete path from authenticated case creation through versioning, search, review, and export. It must use synthetic simulation data only; real patient data and personally identifiable learner, faculty, or staff data are outside the system boundary.
 
@@ -46,8 +46,8 @@ flowchart TB
     oidc["OHSU OIDC provider"]
 
     subgraph system["OHSU Simulation Case Database"]
-        web["React + TypeScript web client\nPlanned"]
-        api["Node.js + Express API\nPlanned"]
+        web["React + TypeScript web client\nInitial version implemented"]
+        api["Node.js + Express API\nInitial version implemented"]
         db[("PostgreSQL 16\nSchema implemented")]
         objects[("Private object storage\nProposed")]
     end
@@ -61,8 +61,8 @@ flowchart TB
 
 | Container | Responsibility | Current state |
 |---|---|---|
-| Web client | Accessible user interface, form validation, search, review workflow, and import/export actions | **Planned.** React and TypeScript are project constraints; the front-end RFC metadata is still Draft. |
-| API | Authentication, authorization, business rules, transactions, document processing, and all database/file access | **Planned.** No application `package.json` or API code exists yet. |
+| Web client | Accessible user interface, form validation, search, review workflow, and import/export actions | **Partly implemented.** `client/` is a Vite + React + TypeScript app with React Router. A shared layout (`components/Layout.tsx`) provides the header navigation and skip link. It has a New case form (`/new`) and a Cases list (`/cases`) with text search, course/campus/outcome filters kept in the page URL, and loading, error, and empty states. Review, import, and export screens are planned. The front-end RFC metadata is still Draft. |
+| API | Authentication, authorization, business rules, transactions, document processing, and all database/file access | **Partly implemented.** `server/` is an Express + TypeScript app with zod input validation and parameterized `pg` queries. It serves `GET /api/health`, `GET /api/cases`, `POST /api/cases`, and three lookup lists (see §3.1). There is no authentication or authorization yet, so every route is open. |
 | PostgreSQL | Durable case, version, taxonomy, usage, outcome, and review data | **Implemented.** Schema and database tests run against PostgreSQL 16.15 in CI. |
 | Object storage | Private original uploads and generated export artifacts; database stores metadata and object keys | **Pending.** The S3 RFC is Proposed and retention rules are unresolved. |
 | OHSU OIDC | User authentication and identity claims | **Pending integration details.** The API must still enforce authorization independently of the browser. |
@@ -79,7 +79,7 @@ The following endpoints are the baseline implementation contract. Before client 
 
 | Method and route | Contract |
 |---|---|
-| `GET /health` | Public liveness response; must not expose secrets, configuration, or database contents. |
+| `GET /api/health` | Public liveness response; must not expose secrets, configuration, or database contents. |
 | `GET /api/cases` | Return title, status, campus use, and last-updated data. Accept course, campus, outcome, and text filters. Pagination must be included before production use. |
 | `POST /api/cases` | Create a case and its first draft version in one database transaction. Missing or blank title returns `400` and performs no writes. |
 | `GET /api/cases/:caseId` | Return case metadata, current version, version history, mappings, and review summary according to the caller's permissions. |
@@ -89,6 +89,17 @@ The following endpoints are the baseline implementation contract. Before client 
 | `POST /api/case-versions/:versionId/reviews` | Record approve or request-changes, reviewer, comment, and decision time. Role and self-review rules are pending. |
 | `POST /api/imports/word` | Accept an allowed Word document, create a draft, and return all content that could not be placed automatically. |
 | `GET /api/case-versions/:versionId/export?format=docx\|pdf` | Produce or retrieve an authorized export containing every template section in its original order. |
+
+**Implemented so far** (`server/src/app.ts`, `server/src/routes/cases.ts`). These differ from the target contract above, and none of them require authentication yet:
+
+| Route | Current behavior | Gap from the target contract |
+|---|---|---|
+| `GET /api/health` | Returns `{ "status": "ok" }`. Does not check the database. | None for liveness. A readiness check (§6) is still needed. |
+| `GET /api/cases` | Returns an array of `{ id, title, status, updatedAt }`, newest first. `updatedAt` is the current version's creation time. Optional parameters combine with AND: `search` matches the title or any text in the current version's content (case-insensitive); `course` and `campus` (ids) must match the same `case_use` row; `outcome` (id) must be mapped to the current version. A malformed or nonexistent id returns `400` with the offending `fields`. | No campus use in the response, no pagination. |
+| `GET /api/courses`, `GET /api/campuses`, `GET /api/outcomes` | Return every row of each reference table, sorted, for the Cases page's filter dropdowns. | Not in the target contract above; add them when the contract is next reviewed. |
+| `POST /api/cases` | Body `{ title, content }`. Creates the case, version 1 with status `draft`, and the current-version pointer in one transaction, then returns `201` with `{ id, versionId }`. A missing, blank, or over-300-character title returns `400`. | No creator or owner is recorded, because there is no signed-in user. |
+
+Errors currently return `{ "error": "<code>" }` (for example `invalid_request`, `not_found`, `internal_error`). A `400` from `GET /api/cases` adds a `fields` list naming the bad parameters, and a `400` from `POST /api/cases` adds zod's `issues` list. That is simpler than the error envelope below; the two should be reconciled before more routes are added.
 
 JSON errors should use one predictable envelope:
 
@@ -147,8 +158,8 @@ Conflicting version numbers or invalid workflow transitions return `409`. Search
 
 | Environment | Design |
 |---|---|
-| Local development | PostgreSQL 16.15 in Docker or a local PostgreSQL instance. `bash db/test.sh` creates a temporary database, loads the schema, runs SQL tests, and drops it. |
-| CI | GitHub Actions scans for secrets and blocked sensitive files, starts PostgreSQL 16.15, and runs database tests. An application job is already defined and will run install, lint, typecheck, test, and build after a root `package.json` exists. |
+| Local development | PostgreSQL 16.15 in Docker or a local PostgreSQL instance. `bash db/test.sh` creates a temporary database, loads the schema, runs SQL tests, and drops it. For the app, the API (`npm run dev --workspace server`, port 3000) reads `DATABASE_URL` from `server/.env`, and the Vite client (`npm run dev --workspace client`) forwards `/api` to it. The server's database tests run when `TEST_DATABASE_URL` names a throwaway database ending in `_test`. README.md ("Run the app") has the steps. |
+| CI | GitHub Actions scans for secrets and blocked sensitive files, starts PostgreSQL 16.15, and runs database tests. The app job runs `npm ci`, lint, typecheck, test, and build across the `client` and `server` workspaces on Node 22. It does not set `TEST_DATABASE_URL`, so the server's database tests are skipped in CI. |
 | Staging | **Not yet implemented.** Must use synthetic data, the approved identity-provider test configuration, and production-like database/storage controls. |
 | Production | **Pending OHSU IT approval.** No production topology should be treated as final yet. |
 
@@ -200,11 +211,12 @@ The team is intentionally deferring microservices, message queues, real-time col
 
 Before implementation begins, the team and partner should review the context/container diagrams, walk through create → version → submit → review → search → export, and identify the behavior when OIDC, PostgreSQL, object storage, or document conversion is unavailable. A design review is complete only when unresolved issues are captured above with owners and dates.
 
-This is a living document. Any pull request that changes a container boundary, API contract, data relationship, deployment topology, security boundary, or major failure behavior must update this file in the same change. Durable, hard-to-reverse decisions should also update or add a decision record. Current records live in `docs/rfcs/`; the team should standardize whether future accepted decisions belong there or under `docs/adr/` before creating both structures.
+This is a living document. Any pull request that changes a container boundary, API contract, data relationship, deployment topology, security boundary, or major failure behavior must update this file in the same change. Durable, hard-to-reverse decisions should also update or add a decision record. Decision records live in `docs/rfcs/` (see AGENTS.md, Sources of truth); there is no separate `docs/adr/` folder.
 
 ## Repository Evidence Used
 
-- [`README.md`](../README.md) — project purpose, current status, planned stack, and local/CI workflow.
+- [`README.md`](../README.md) — project purpose, current status, stack, and local app/CI workflow.
+- [`server/src/`](../server/src/) and [`client/src/`](../client/src/) — implemented API routes and client pages.
 - [`docs/requirements.md`](requirements.md) — functional requirements, constraints, performance targets, success metrics, non-goals, and open questions.
 - [`db/schema.sql`](../db/schema.sql) and [`db/tests/`](../db/tests/) — implemented data model and verified database behavior.
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) and [`CONTRIBUTING.md`](../CONTRIBUTING.md) — existing quality gates and review process.
