@@ -1,10 +1,126 @@
-.case-form { max-width: 960px; margin: 0 auto; padding: 1rem; text-align: left; }
-.case-form .field { margin: 0 0 1rem; }
-.case-form label, .case-form legend { display: block; font-weight: bold; }
-.case-form .option { display: inline-block; font-weight: normal; margin-right: 1rem; }
-.case-form input[type='text'], .case-form textarea { width: 100%; box-sizing: border-box; font: inherit; }
-.case-form textarea { min-height: 5rem; }
-.case-form .help { margin: 0.25rem 0; font-size: 0.9rem; }
-.case-form .error { color: #b00020; font-weight: bold; }
-.case-form .table-wrap { overflow-x: auto; }
-.case-form td, .case-form th { vertical-align: top; padding: 0.25rem; }
+/* "New case" form. Base control colors, borders and focus come from index.css;
+   this file only lays the form out. Labels sit above full-width inputs. */
+
+.case-form {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.case-form .field {
+  margin: 0 0 var(--space-6);
+}
+
+.case-form label,
+.case-form legend {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-weight: 600;
+}
+
+.case-form input:not([type='checkbox'], [type='radio']),
+.case-form textarea,
+.case-form select {
+  width: 100%;
+}
+
+.case-form .help {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Checkbox and radio choices wrap onto as many lines as they need. */
+.case-form .option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) var(--space-6) var(--space-1) 0;
+  font-weight: normal;
+}
+
+/* "Other (describe)" under a checkbox list. */
+.case-form fieldset > div:not(.row, .table-wrap) {
+  margin-top: var(--space-3);
+}
+
+/* One item in a list field: label on its own line, then the input with its
+   Remove button beside it (or below it when there isn't room). */
+.case-form .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.case-form .row label {
+  flex-basis: 100%;
+  margin-bottom: 0;
+}
+
+.case-form .row input:not([type='checkbox'], [type='radio']) {
+  flex: 1 1 12rem;
+  width: auto;
+}
+
+/* Add buttons sit just below the items they add to. */
+.case-form fieldset > button {
+  margin-top: var(--space-2);
+}
+
+/* Table fields (medications, progression, ...). The wrapper scrolls sideways
+   on its own when the columns don't fit, so the page itself never does. */
+.case-form .table-wrap {
+  overflow-x: auto;
+  margin-bottom: var(--space-2);
+}
+
+.case-form table {
+  border-collapse: collapse;
+}
+
+.case-form th {
+  padding: var(--space-2);
+  text-align: left;
+  font-weight: 600;
+  background: var(--surface-alt);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.case-form td {
+  padding: var(--space-1);
+  vertical-align: top;
+}
+
+.case-form td input:not([type='checkbox'], [type='radio']),
+.case-form td textarea {
+  min-width: 10rem;
+}
+
+/* Optional sections fold away behind a summary line. */
+.case-form details {
+  margin: 0 0 var(--space-4);
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.case-form summary {
+  padding: var(--space-3) 0;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.case-form details[open] {
+  padding-bottom: var(--space-2);
+}
+
+.case-form details[open] > summary {
+  margin-bottom: var(--space-2);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.case-form > button[type='submit'] {
+  margin-top: var(--space-4);
+}

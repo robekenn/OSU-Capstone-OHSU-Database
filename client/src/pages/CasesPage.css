@@ -1,19 +1,34 @@
-.cases-page { max-width: 960px; margin: 0 auto; padding: 1rem; text-align: left; }
-.cases-page p { margin-top: 1rem; }
-.cases-page button { font: inherit; cursor: pointer; }
-.cases-page button:disabled { cursor: wait; }
-.cases-table-wrap { overflow-x: auto; margin-top: 1rem; }
+/* Cases page. Control colors, borders and focus come from index.css. */
+.cases-page { max-width: var(--page-max); margin: 0 auto; padding: var(--space-4); }
+.cases-page p { margin-top: var(--space-4); }
+
+/* Error messages (lists failed to load, bad filter, server error) get the same
+   bold text and left bar as form errors, so they don't rely on color. */
+.cases-page [role='alert'] { padding-left: var(--space-2); border-left: 4px solid var(--danger); color: var(--danger); font-weight: 700; }
+
+.cases-table-wrap { overflow-x: auto; margin-top: var(--space-4); }
 .cases-table { width: 100%; border-collapse: collapse; }
-.cases-table caption { text-align: left; padding-bottom: 0.5rem; }
-.cases-table th, .cases-table td { padding: 0.75rem; border-bottom: 1px solid var(--border); text-align: left; overflow-wrap: anywhere; }
+.cases-table caption { text-align: left; padding-bottom: var(--space-2); font-weight: 600; color: var(--text-h); }
+.cases-table th, .cases-table td { padding: var(--space-3); border-bottom: var(--border-width) solid var(--border); text-align: left; vertical-align: top; }
+/* Only titles may break mid-word (a long unbroken title must not widen the table);
+   status and date wrap at spaces so "approved" never becomes "appro / ved". */
+.cases-table td:first-child { overflow-wrap: anywhere; }
+.cases-table th { background: var(--surface-alt); font-weight: 600; border-bottom-color: var(--border-strong); }
+.cases-table tbody tr:hover { background: var(--surface-alt); }
 
 /* Search and filters: wraps to one field per line on narrow screens. */
-.case-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem 1rem; }
-.case-filters-field { display: flex; flex-direction: column; gap: 0.25rem; flex: 1 1 10rem; min-width: 0; }
+.case-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3) var(--space-4); }
+.case-filters-field { display: flex; flex-direction: column; gap: var(--space-1); flex: 1 1 10rem; min-width: 0; }
+.case-filters-field label { font-weight: 600; }
 .case-filters-search { flex-basis: 16rem; }
-.case-filters input, .case-filters select { font: inherit; box-sizing: border-box; height: 2.5rem; padding: 0 0.5rem; max-width: 100%; }
-.case-filters select:disabled { cursor: wait; }
-.case-filters-actions { display: flex; gap: 0.5rem; }
-.case-filters-note { flex-basis: 100%; margin: 0; }
-.cases-results-bar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; margin-top: 1rem; }
+.case-filters input, .case-filters select { width: 100%; }
+.case-filters-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.case-filters .case-filters-note { flex-basis: 100%; margin: 0; }
+.cases-results-bar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-4); margin-top: var(--space-4); }
 .cases-page .cases-status { margin: 0; }
+
+/* Phone width: tighter cells so all three columns fit without sideways scrolling. */
+@media (max-width: 30rem) {
+  .cases-page { padding: var(--space-3); }
+  .cases-table th, .cases-table td { padding: var(--space-2); }
+}

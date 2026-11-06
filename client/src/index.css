@@ -1,31 +1,85 @@
-/* App-wide styles: theme colors, the shell (skip link, header, nav) and base
-   typography. Page styles live next to each page. Bare CSS, no framework.
-   Colors meet WCAG AA contrast in both themes. */
+/* App-wide styles: design tokens, base elements and form controls, and the
+   shell (skip link, header, nav). Page layout lives next to each page.
+   Bare CSS, no framework.
+
+   Every color is a token on :root, redefined for dark mode below. Don't use a
+   color value anywhere else; tests/theme.test.ts fails on one. Pairs checked
+   against WCAG 2.1 AA (text 4.5:1, borders and focus 3:1) in both themes:
+   --text, --text-muted, --link, --danger on --bg and --surface-alt;
+   --on-accent on --accent and --accent-hover; --border-strong and --focus
+   on --bg and --surface-alt. --border is for decorative dividers only, never
+   for the edge of a control. */
 
 :root {
+  /* Colors */
+  --bg: #ffffff;
+  --surface: #ffffff; /* inputs and buttons */
+  --surface-alt: #f6f8fa; /* table headers, hover, collapsible sections */
   --text: #1f2328;
   --text-h: #0d1117;
-  --bg: #ffffff;
+  --text-muted: #59636e;
   --border: #d0d7de;
+  --border-strong: #6e7781;
   --link: #0a58ca;
   --focus: #0a58ca;
+  --accent: #0a58ca;
+  --accent-hover: #084298;
+  --on-accent: #ffffff;
+  --danger: #b42318;
+
+  /* Type */
+  --font-body: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.75rem;
+  --line-height: 1.5;
+  --line-height-tight: 1.25;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Shape and size */
+  --radius: 6px;
+  --radius-sm: 4px;
+  --border-width: 1px;
+  --focus-width: 3px;
+  --control-height: 2.5rem;
+  --page-max: 60rem;
 
   color-scheme: light dark;
-  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
   color: var(--text);
   background: var(--bg);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --bg: #0d1117;
+    --surface: #0d1117;
+    --surface-alt: #161b22;
     --text: #e6edf3;
     --text-h: #f6f8fa;
-    --bg: #0d1117;
+    --text-muted: #9198a1;
     --border: #30363d;
+    --border-strong: #8b949e;
     --link: #79b8ff;
     --focus: #79b8ff;
+    --accent: #79b8ff;
+    --accent-hover: #a5d0ff;
+    --on-accent: #0d1117;
+    --danger: #ff8f85;
   }
 }
+
+/* ---- Base elements ---- */
 
 body {
   margin: 0;
@@ -36,19 +90,25 @@ a {
 }
 
 h1,
-h2 {
+h2,
+h3 {
   color: var(--text-h);
-  line-height: 1.25;
+  line-height: var(--line-height-tight);
 }
 
 h1 {
-  margin: 0.5rem 0 1rem;
-  font-size: 1.75rem;
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--font-size-xl);
+}
+
+h2 {
+  margin: var(--space-8) 0 var(--space-3);
+  font-size: var(--font-size-lg);
 }
 
 /* Every focusable element gets the same clearly visible outline from the keyboard. */
 :focus-visible {
-  outline: 3px solid var(--focus);
+  outline: var(--focus-width) solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -57,19 +117,123 @@ main:focus {
   outline: none;
 }
 
+/* ---- Form controls ---- */
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Text-like inputs, selects and textareas share one look. Checkboxes and
+   radios keep their native shape and only take the accent color. */
+input:not([type='checkbox'], [type='radio']),
+select,
+textarea {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* A field marked invalid gets a thicker border, so the error shows without
+   relying on color. The message next to it says what is wrong. */
+input[aria-invalid='true']:not([type='checkbox'], [type='radio']),
+select[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+  border-width: 2px;
+}
+
+button {
+  box-sizing: border-box;
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-4);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--surface-alt);
+}
+
+/* The submit button in each form is its main action (Search, Save case). */
+button[type='submit'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+button[type='submit']:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+/* Disabled controls are exempt from contrast rules; the dimming plus the
+   cursor shows they can't be used yet (they're disabled while loading). */
+button:disabled,
+select:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+fieldset {
+  min-width: 0; /* lets wide tables inside scroll instead of widening the page */
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius);
+}
+
+legend {
+  padding: 0 var(--space-1);
+}
+
+/* Error text: bold, with a bar on the left, so it stands out without color. */
+.error {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-2);
+  border-left: 4px solid var(--danger);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* ---- Shell ---- */
+
 /* Hidden off-screen until it receives keyboard focus. */
 .skip-link {
   position: absolute;
-  left: 0.5rem;
+  left: var(--space-2);
   top: -10rem;
-  padding: 0.5rem 1rem;
+  padding: var(--space-2) var(--space-4);
   background: var(--bg);
   border: 2px solid var(--focus);
   z-index: 10;
 }
 
 .skip-link:focus {
-  top: 0.5rem;
+  top: var(--space-2);
 }
 
 .site-header {
@@ -77,9 +241,9 @@ main:focus {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1.5rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border);
 }
 
 .site-name {
@@ -90,7 +254,8 @@ main:focus {
 
 .nav-list {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -98,7 +263,7 @@ main:focus {
 
 .nav-list a {
   display: inline-block;
-  padding: 0.25rem 0.125rem;
+  padding: var(--space-1) 0.125rem;
   text-decoration: none;
 }
 
@@ -117,7 +282,7 @@ main:focus {
 
 /* Pages set their own width and padding; this is for pages with no stylesheet. */
 .simple-page {
-  max-width: 960px;
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: 1rem;
+  padding: var(--space-4);
 }

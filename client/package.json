@@ -9,7 +9,7 @@
     "typecheck": "tsc -b",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "tsx --tsconfig tsconfig.app.json --test tests/cases.test.tsx tests/case-filters.test.tsx"
+    "test": "tsx --tsconfig tsconfig.app.json --test tests/cases.test.tsx tests/case-filters.test.tsx tests/theme.test.ts"
   },
   "dependencies": {
     "react": "^19.3.1",
