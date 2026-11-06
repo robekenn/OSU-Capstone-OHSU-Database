@@ -8,30 +8,68 @@ const createCaseBody = z.object({
   content: z.record(z.string(), z.unknown()).default({}),
 })
 
+// A filter id must be a plain positive whole number that fits a Postgres INT.
+// Anything else (abc, 1.5, -1, an empty value, ?course=1&course=2) is a 400.
+const filterId = z
+  .string()
+  .regex(/^[1-9][0-9]{0,9}$/)
+  .transform(Number)
+  .refine((id) => id <= 2_147_483_647)
+  .optional()
+
 const listQuery = z.object({
   search: z.string().trim().max(200).optional(),
+  course: filterId,
+  campus: filterId,
+  outcome: filterId,
 })
 
 export function casesRouter() {
   const router = Router()
 
-  // List cases. With ?search=word, matches the title or anything inside the case content.
+  // List cases (FR-6). Every parameter is optional and they combine with AND:
+  //   ?search=word  matches the title or anything inside the current version's content
+  //   ?course=id    the case is used in that course (case_use)
+  //   ?campus=id    the case is used at that campus (case_use)
+  //   ?outcome=id   the case's CURRENT version maps to that outcome; older versions don't count
+  // With both course and campus, they must be on the same case_use row: the case
+  // runs in that course at that campus, not in that course somewhere and at that
+  // campus in some other course.
   router.get('/', async (req, res, next) => {
     const parsed = listQuery.safeParse(req.query)
     if (!parsed.success) {
-      res.status(400).json({ error: 'invalid_request' })
+      const fields = [...new Set(parsed.error.issues.map((issue) => String(issue.path[0])))]
+      res.status(400).json({ error: 'invalid_request', fields })
       return
     }
+    const { search, course = null, campus = null, outcome = null } = parsed.data
 
     // Turn the search word into a LIKE pattern. % and _ are wildcards in LIKE,
     // so escape them (and the backslash) so they match as plain characters.
-    const search = parsed.data.search
     let pattern: string | null = null
     if (search) {
       pattern = '%' + search.replace(/[\\%_]/g, '\\$&') + '%'
     }
 
     try {
+      // An id that is well formed but doesn't exist is the caller's mistake, so
+      // it gets a 400 naming the field instead of a quietly empty list.
+      if (course !== null || campus !== null || outcome !== null) {
+        const check = await pool.query(
+          `SELECT ($1::int IS NULL OR EXISTS (SELECT 1 FROM course  WHERE id = $1)) AS course,
+                  ($2::int IS NULL OR EXISTS (SELECT 1 FROM campus  WHERE id = $2)) AS campus,
+                  ($3::int IS NULL OR EXISTS (SELECT 1 FROM outcome WHERE id = $3)) AS outcome`,
+          [course, campus, outcome],
+        )
+        const found: Record<string, boolean> = check.rows[0]
+        const unknown = Object.keys(found).filter((field) => !found[field])
+        if (unknown.length > 0) {
+          res.status(400).json({ error: 'invalid_request', fields: unknown })
+          return
+        }
+      }
+
+      // EXISTS rather than JOIN, so a case used in several courses is still listed once.
       const result = await pool.query(
         `SELECT c.id,
                 c.title,
@@ -39,11 +77,22 @@ export function casesRouter() {
                 v.created_at AS "updatedAt"
            FROM sim_case c
            LEFT JOIN case_version v ON v.id = c.current_version_id
-          WHERE $1::text IS NULL
-             OR c.title ILIKE $1
-             OR v.content::text ILIKE $1
+          WHERE ($1::text IS NULL
+                 OR c.title ILIKE $1
+                 OR v.content::text ILIKE $1)
+            AND (($2::int IS NULL AND $3::int IS NULL)
+                 OR EXISTS (SELECT 1
+                              FROM case_use u
+                             WHERE u.case_id = c.id
+                               AND ($2::int IS NULL OR u.course_id = $2)
+                               AND ($3::int IS NULL OR u.campus_id = $3)))
+            AND ($4::int IS NULL
+                 OR EXISTS (SELECT 1
+                              FROM case_version_outcome m
+                             WHERE m.case_version_id = c.current_version_id
+                               AND m.outcome_id = $4))
           ORDER BY v.created_at DESC NULLS LAST, c.id DESC`,
-        [pattern],
+        [pattern, course, campus, outcome],
       )
       res.json(result.rows)
     } catch (error) {

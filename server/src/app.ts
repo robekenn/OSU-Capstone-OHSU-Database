@@ -1,5 +1,6 @@
 import express from 'express'
 import { casesRouter } from './routes/cases.js'
+import { lookupsRouter } from './routes/lookups.js'
 
 export function createApp() {
   const app = express()
@@ -11,6 +12,7 @@ export function createApp() {
   })
 
   app.use('/api/cases', casesRouter())
+  app.use('/api', lookupsRouter())
 
   // Any other /api URL gets a 404 as JSON.
   app.use('/api', (_req, res) => {

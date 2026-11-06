@@ -6,3 +6,14 @@
 .cases-table { width: 100%; border-collapse: collapse; }
 .cases-table caption { text-align: left; padding-bottom: 0.5rem; }
 .cases-table th, .cases-table td { padding: 0.75rem; border-bottom: 1px solid var(--border); text-align: left; overflow-wrap: anywhere; }
+
+/* Search and filters: wraps to one field per line on narrow screens. */
+.case-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem 1rem; }
+.case-filters-field { display: flex; flex-direction: column; gap: 0.25rem; flex: 1 1 10rem; min-width: 0; }
+.case-filters-search { flex-basis: 16rem; }
+.case-filters input, .case-filters select { font: inherit; box-sizing: border-box; height: 2.5rem; padding: 0 0.5rem; max-width: 100%; }
+.case-filters select:disabled { cursor: wait; }
+.case-filters-actions { display: flex; gap: 0.5rem; }
+.case-filters-note { flex-basis: 100%; margin: 0; }
+.cases-results-bar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; margin-top: 1rem; }
+.cases-page .cases-status { margin: 0; }

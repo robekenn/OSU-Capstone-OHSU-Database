@@ -4,6 +4,7 @@ import { afterEach, test } from 'node:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { listCases } from '../src/api/cases'
 import { CasesTable } from '../src/pages/CasesPage'
+import { describeResults } from '../src/pages/caseFilters'
 
 const originalFetch = globalThis.fetch
 afterEach(() => { globalThis.fetch = originalFetch })
@@ -15,7 +16,7 @@ test('loads a newly saved draft using the existing list contract', async () => {
     assert.ok(options?.signal instanceof AbortSignal)
     return Response.json([draft])
   }
-  assert.deepEqual(await listCases(new AbortController().signal), [draft])
+  assert.deepEqual(await listCases({}, new AbortController().signal), [draft])
 })
 
 test('rejects HTTP errors and malformed responses instead of showing an empty list', async () => {
@@ -43,6 +44,8 @@ test('renders an accessible table with escaped titles and readable status', () =
 })
 
 test('shows the specified empty state', () => {
-  assert.match(renderToStaticMarkup(<CasesTable cases={[]} />), /No cases yet/)
+  // The empty message now lives in the page's role="status" line (#39), not the table.
+  assert.equal(renderToStaticMarkup(<CasesTable cases={[]} />), '')
+  assert.equal(describeResults(0, false), 'No cases yet')
 })
 
