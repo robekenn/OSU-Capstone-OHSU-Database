@@ -4,7 +4,7 @@ import { InvalidFilterError, filtersToQuery, listCampuses, listCases, listCourse
 import type { Campus, CaseFilters, CaseSummary, Course, Outcome } from '../api/cases'
 import { courseLabel, describeResults, filtersFromParams, outcomeLabel } from './caseFilters'
 
-export function CasesTable({ cases }: { cases: CaseSummary[] }) {
+export function CasesTable({ cases, returnTo = '/cases' }: { cases: CaseSummary[]; returnTo?: string }) {
   // The page's status line says when there are no cases, so an empty list renders nothing here.
   if (cases.length === 0) return null
 
@@ -24,7 +24,7 @@ export function CasesTable({ cases }: { cases: CaseSummary[] }) {
             const date = item.updatedAt ? new Date(item.updatedAt) : null
             return (
               <tr key={item.id}>
-                <td>{item.title}</td>
+                <td><a href={'/cases/' + item.id + '?returnTo=' + encodeURIComponent(returnTo)}>{item.title}</a></td>
                 <td>{item.status || 'Not available'}</td>
                 <td>{date && !Number.isNaN(date.getTime()) ? (
                   <time dateTime={item.updatedAt ?? undefined}>{date.toLocaleString()}</time>
@@ -235,7 +235,7 @@ export default function CasesPage() {
       {view.kind === 'error' && (
         <p role="alert">{view.message}{view.badFilter ? '' : ' Use Refresh cases to try again.'}</p>
       )}
-      {view.kind === 'ready' && <CasesTable cases={view.cases} />}
+      {view.kind === 'ready' && <CasesTable cases={view.cases} returnTo={'/cases' + (searchParams.size ? '?' + searchParams.toString() : '')} />}
     </section>
   )
 }

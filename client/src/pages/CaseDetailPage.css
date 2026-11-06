@@ -1,0 +1,6 @@
+.case-detail { overflow-wrap: anywhere; }
+.case-detail section { margin-block: var(--space-6); }
+.case-detail h3 { margin-bottom: var(--space-2); }
+.case-detail .saved-text { white-space: pre-wrap; }
+.case-detail dd { margin-inline-start: var(--space-4); }
+.case-detail dt { font-weight: bold; }

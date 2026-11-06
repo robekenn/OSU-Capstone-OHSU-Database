@@ -3,6 +3,10 @@
 import { FILTER_KEYS } from '../api/cases'
 import type { CaseFilters, Course, Outcome } from '../api/cases'
 
+export function casesReturnTo(value: string | null): string {
+  return value === '/cases' || value?.startsWith('/cases?') ? value : '/cases'
+}
+
 // What the status line says once results arrive. "No cases yet" only when nothing
 // is filtered, so an empty search doesn't suggest the database is empty.
 export function describeResults(count: number, filtered: boolean): string {

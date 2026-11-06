@@ -104,6 +104,45 @@ JSON errors should use one predictable envelope:
 
 Use `400` for malformed requests, `401` for missing/invalid authentication, `403` for insufficient permission, `404` for absent or non-visible resources, `409` for state or uniqueness conflicts, and `422` when a structurally valid import cannot satisfy domain validation. The API must not expose stack traces, SQL, storage keys, or OIDC tokens.
 
+### Initial current-version detail view (#48)
+
+`GET /api/cases/:caseId` implements the first part of the planned detail contract:
+`{ id, title, currentVersion }`. The version is null when no valid current version
+belongs to this case; otherwise it contains `id`, `versionNumber`, `status`,
+`createdAt`, and the saved JSON `content`. A malformed positive PostgreSQL INT ID
+returns `400`; a missing case returns `404`. The query is read-only and joins the
+version by both its ID and case ID. History, mappings, and review summaries remain
+unimplemented parts of the full contract above.
+
+The detail page follows the template's section order and labels. It also displays
+saved keys outside the current template as additional content. It must not write
+back, infer missing values, or remove legacy content. Back to cases preserves the
+list URL's search and filters. Blank optional fields may be omitted from display.
+
+The current application has no authentication middleware. This addition does not
+resolve FR-1 or change the permission requirements below. Restrict verification to
+local synthetic data; protect the API before enabling real-user access.
+
+### Role details in new drafts (#44)
+
+The `roles.participants`, `roles.patientEmbedded`, and `roles.educatorsStaff`
+fields now store arrays of `{ "role": "Observers", "detail": "6-10" }`.
+Participants use detail for counts/ranges; the other groups use it for a role
+description or assignment. A selected role may have an empty detail in a draft.
+No real person's name is required. An unchecked role is omitted on submission.
+The UI may keep `selected: "false"` locally so rechecking restores typed text;
+`selected` is removed before storage. Successful save clears the form and drafts.
+
+Old string-array selections, `participantCounts`, and `patientEmbeddedOther`
+are still readable. Existing database content is not migrated or rewritten.
+The old shared count is labelled as legacy information, not assigned to individual
+roles by guesswork. The separate Other text input is removed only from the new
+patient/embedded-role form; its replacement is that role's own detail input.
+
+Per-participant counts follow the partner's draft template. Detail inputs for
+every other role are the issue's proposed interpretation, not proof of partner
+approval. This change does not claim complete coverage of that draft template.
+
 ### 3.2 Authentication and authorization
 
 The server validates the OIDC session or token, maps the stable OIDC subject to `app_user.oidc_subject`, and applies a default-deny authorization policy. The exact browser flow—server session cookie versus bearer token—must be decided by the OIDC spike and OHSU guidance. Until the team agrees on a role/permission matrix, free-text roles in the current schema are not an authorization specification.

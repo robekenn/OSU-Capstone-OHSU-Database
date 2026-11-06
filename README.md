@@ -1,5 +1,8 @@
 # OHSU Simulation Database
 
+For the current-version detail page and role-field verification, see
+[Read a saved case](docs/case-details.md).
+
 For the new-case → cases-list demo, client checks, and the current API contract,
 see [Cases list demo (#37)](docs/issue-37-demo.md).
 

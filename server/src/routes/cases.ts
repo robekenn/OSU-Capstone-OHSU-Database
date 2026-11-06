@@ -100,6 +100,36 @@ export function casesRouter() {
     }
   })
 
+  // Read only the version pointed to by this case. Never expose another case's version.
+  router.get('/:caseId', async (req, res, next) => {
+    const parsed = filterId.safeParse(req.params.caseId)
+    if (!parsed.success || parsed.data === undefined) {
+      res.status(400).json({ error: 'invalid_request' })
+      return
+    }
+    try {
+      const result = await pool.query(
+        `SELECT c.id, c.title, v.id AS "versionId", v.version_number AS "versionNumber",
+                v.status, v.created_at AS "createdAt", v.content
+           FROM sim_case c
+           LEFT JOIN case_version v ON v.id = c.current_version_id AND v.case_id = c.id
+          WHERE c.id = $1`,
+        [parsed.data],
+      )
+      const row = result.rows[0]
+      if (!row) {
+        res.status(404).json({ error: 'not_found' })
+        return
+      }
+      res.json({ id: row.id, title: row.title, currentVersion: row.versionId === null ? null : {
+        id: row.versionId, versionNumber: row.versionNumber, status: row.status,
+        createdAt: row.createdAt, content: row.content,
+      } })
+    } catch (error) {
+      next(error)
+    }
+  })
+
   // Create a case as a draft: one sim_case row plus its version 1, all-or-nothing.
   router.post('/', async (req, res, next) => {
     const parsed = createCaseBody.safeParse(req.body)

@@ -12,7 +12,7 @@ type Props = {
 export default function FieldInput({ sectionKey, field, value, otherValue, onChange }: Props) {
   const id = sectionKey + '-' + field.key
   const helpId = id + '-help'
-  const help = field.kind === 'checkboxes' || field.kind === 'radio' ? undefined : field.help
+  const help = 'help' in field ? field.help : undefined
 
   if (field.kind === 'text' || field.kind === 'textarea') {
     const current = typeof value === 'string' ? value : ''
@@ -126,6 +126,32 @@ export default function FieldInput({ sectionKey, field, value, otherValue, onCha
         </button>
       </fieldset>
     )
+  }
+
+  if (field.kind === 'roles') {
+    const rows = (Array.isArray(value) ? value : []).filter(
+      (item): item is TableRow => typeof item === 'object' && item !== null && typeof item.role === 'string',
+    )
+    const changeRole = (role: string, patch: Partial<TableRow>) => {
+      const existing = rows.find((row) => row.role === role)
+      const next = { role, detail: '', ...existing, ...patch }
+      onChange(field.key, existing ? rows.map((row) => row.role === role ? next : row) : [...rows, next])
+    }
+    return <fieldset className="field">
+      <legend>{field.label}</legend>
+      {field.options.map((role, index) => {
+        const row = rows.find((item) => item.role === role)
+        const checked = row !== undefined && row.selected !== 'false'
+        const roleId = id + '-' + index
+        return <div key={role} className="role-entry">
+          <label className="option"><input type="checkbox" checked={checked}
+            onChange={(event) => changeRole(role, { selected: String(event.target.checked) })} />{' '}{role}</label>
+          <label htmlFor={roleId}>{role}: {field.detailLabel}</label>
+          <input id={roleId} type="text" value={row?.detail ?? ''} disabled={!checked}
+            onChange={(event) => changeRole(role, { detail: event.target.value })} />
+        </div>
+      })}
+    </fieldset>
   }
 
   // Everything left is a table.
