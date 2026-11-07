@@ -88,10 +88,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # There is no app code yet. Until a package.json exists at the repo
-      # root, this job passes with a notice instead of failing.
-      # If the team splits the app into folders (for example server/ and
-      # client/), change the path checks and add `working-directory`.
+      # The root package.json is an npm workspaces file for client/ and
+      # server/, so each script below runs in both. If the root package.json
+      # is ever removed, this job passes with a notice instead of failing.
       - name: Check for app code
         id: detect
         run: |

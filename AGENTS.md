@@ -6,7 +6,7 @@ This file applies to the entire repository. It guides contributors and AI coding
 
 The project will provide a centralized system for faculty to develop, find, review, adapt, and maintain simulation-based learning experiences across OHSU campuses. It is not merely file storage. The product must support structured simulation design, quality assurance, curricular alignment, collaboration, version history, and continuous improvement.
 
-This repository is at an early discovery stage. Do not invent requirements or commit the team to a framework, cloud provider, database, authentication service, or deployment model until the team and project partner have documented that decision.
+This repository is in early development. The application stack is decided and recorded in `docs/requirements.md` (Constraint C-1): PostgreSQL, Node.js + Express with TypeScript, and React + TypeScript built with Vite. Sign-in must use OHSU OIDC, but the identity-provider details are not settled. Do not invent requirements or commit the team to a cloud provider, file-storage service, authentication library, or deployment model until the team and project partner have documented that decision.
 
 ## Project outcomes
 
@@ -28,13 +28,13 @@ Changes should advance one or more of these outcomes:
 Use this order when requirements disagree:
 
 1. Written decisions approved by the OHSU project partner.
-2. Accepted architecture decision records in `docs/adr/`.
+2. Accepted decision records (RFCs) in `docs/rfcs/`.
 3. Approved requirements, backlog items, and acceptance criteria.
 4. The project description, problem statement, and objectives.
 5. The current OHSU simulation design template and needs-assessment form.
 6. Existing implementation and tests.
 
-Record significant product, architecture, data, security, or workflow decisions as ADRs in `docs/adr/`. If a needed decision has not been made, document the uncertainty and ask; do not silently choose a long-term direction.
+Record significant product, architecture, data, security, or workflow decisions as RFCs in `docs/rfcs/`, named `YYYY-MM-DD-short-name.md`. Only an RFC with Status "Accepted" is a decision; Draft and Proposed RFCs are recommendations. If a needed decision has not been made, document the uncertainty and ask; do not silently choose a long-term direction.
 
 ## Current team ownership
 
@@ -61,7 +61,7 @@ The charter states that each concern must ultimately have exactly one named owne
 ## Before making a change
 
 1. Read this file and any more specific `AGENTS.md` in the area being changed.
-2. Read the related issue, acceptance criteria, ADRs, and project-partner notes.
+2. Read the related issue, acceptance criteria, RFCs, `docs/design.md`, and project-partner notes.
 3. Inspect the existing code, tests, schemas, migrations, and documentation before proposing a solution.
 4. Identify whether the work touches confidential material, health-related data, authorization, version history, or approval state.
 5. Ask for clarification when a choice would create a durable product or architecture commitment.
@@ -196,7 +196,30 @@ Until the authentication and hosting model is approved, avoid assumptions that w
 
 ## Implementation standards
 
-The stack and commands are not selected yet. Once selected, add exact setup, lint, test, migration, seed, build, and run commands here.
+### Repository structure
+
+- `client/`: React + TypeScript web client, built with Vite and routed with React Router. Calls the API through `/api`; the Vite dev server forwards `/api` to `http://localhost:3000`. Styling is plain CSS: every color is a token in `client/src/index.css` (light and dark), and `client/tests/theme.test.ts` fails on a color value used anywhere else or on text/border contrast below WCAG 2.1 AA. Tests are in `client/tests/`.
+- `server/`: Node.js + Express + TypeScript API. Validates request bodies with zod and talks to PostgreSQL through `pg` with parameterized queries. `server/.env.example` lists the settings it reads. Tests are in `server/tests/` (vitest and supertest).
+- `db/`: `schema.sql` and its SQL tests.
+- The root `package.json` is an npm workspaces file. Scripts run from the root apply to both `client/` and `server/`.
+
+### Commands
+
+Run these from the repository root. README.md ("Run the app") has the full local setup.
+
+| Purpose | Command |
+|---|---|
+| Install dependencies | `npm ci` (Node 22.12 or newer) |
+| Lint (oxlint) | `npm run lint` |
+| Type check | `npm run typecheck` |
+| Tests | `npm test` (client: Node test runner via tsx; server: vitest) |
+| Server database tests | `TEST_DATABASE_URL=postgres://…/ohsu_sim_server_test npm test --workspace server` (skipped without the variable; wipes that database, whose name must end in `_test`) |
+| Build | `npm run build` |
+| Schema tests | `bash db/test.sh` (needs PostgreSQL; set the `PG*` variables) |
+| Start the API | `npm run dev --workspace server` (reads `server/.env`) |
+| Start the client | `npm run dev --workspace client` |
+
+Not set up yet: a formatter, schema migrations (changes go straight into `db/schema.sql`), and seed data. CI does not set `TEST_DATABASE_URL`, so the server's database tests are skipped there; run them locally when you change server routes or queries. Say so in the pull request rather than claiming checks ran that didn't.
 
 For all code:
 
@@ -234,7 +257,7 @@ Before requesting review, run the documented formatter, linter, type checks, tes
 
 - **Secrets and sensitive files:** fails if `.env` files, `secrets/`, `*.pem` or `*.key` are tracked, and scans the full Git history with gitleaks.
 - **Database schema and tests:** starts Postgres 16.15, loads `db/schema.sql` into an empty database, and runs every `db/tests/test_*.sql` file. Run the same check locally with `bash db/test.sh` (set `PGHOST`, `PGUSER` and so on to point at your Postgres). When you change `db/schema.sql`, add or update a test in `db/tests/` that would fail if the change were reverted. Test data must be synthetic.
-- **App lint, test, build:** runs `npm ci` and then the `lint`, `typecheck`, `test` and `build` scripts when they exist. It is skipped with a notice until a root `package.json` exists. If the app is split into folders, update the workflow's paths.
+- **App lint, test, build:** on Node 22, runs `npm ci` and then the root `lint`, `typecheck`, `test` and `build` scripts, which run in both the `client` and `server` workspaces.
 
 ## Git and review practices
 
@@ -250,8 +273,7 @@ Before requesting review, run the documented formatter, linter, type checks, tes
 
 Update this file as decisions become known. The next important additions are:
 
-- Approved technology stack and repository structure.
-- Local setup and exact quality-check commands.
+- Formatter, migration, and seed commands once they exist.
 - Authentication, roles, and permission matrix.
 - Hosting, environments, and deployment process.
 - Final peer-review and approval workflow.
