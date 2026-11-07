@@ -3,39 +3,9 @@ import type { FormEvent } from 'react'
 import { createCase } from '../api/cases'
 import FieldInput from '../components/FieldInput'
 import { caseTemplate } from '../templates/caseTemplate'
-import type { CaseContent, Field, FieldValue, TableRow } from '../templates/caseTemplate'
+import type { CaseContent, Field, FieldValue } from '../templates/caseTemplate'
+import { cleanContent } from '../templates/cleanContent'
 import './NewCasePage.css'
-
-// Removes blank answers before saving, so the saved case has no empty clutter.
-function cleanContent(raw: CaseContent): CaseContent {
-  const cleaned: CaseContent = {}
-  for (const section of caseTemplate) {
-    const values = raw[section.key]
-    if (!values) continue
-
-    const cleanValues: Record<string, FieldValue> = {}
-    for (const fieldKey of Object.keys(values)) {
-      const value = values[fieldKey]
-      if (typeof value === 'string') {
-        if (value.trim() !== '') cleanValues[fieldKey] = value
-        continue
-      }
-      const strings: string[] = []
-      const rows: TableRow[] = []
-      for (const item of value) {
-        if (typeof item === 'string') {
-          if (item.trim() !== '') strings.push(item)
-        } else if (Object.values(item).some((cell) => cell.trim() !== '')) {
-          rows.push(item)
-        }
-      }
-      if (strings.length > 0) cleanValues[fieldKey] = strings
-      if (rows.length > 0) cleanValues[fieldKey] = rows
-    }
-    if (Object.keys(cleanValues).length > 0) cleaned[section.key] = cleanValues
-  }
-  return cleaned
-}
 
 export default function NewCasePage() {
   const [title, setTitle] = useState('')

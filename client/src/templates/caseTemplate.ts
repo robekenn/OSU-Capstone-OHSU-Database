@@ -8,6 +8,7 @@ export type Field =
   | { kind: 'textarea'; key: string; label: string; help?: string }
   | { kind: 'checkboxes'; key: string; label: string; options: string[]; hasOther?: boolean }
   | { kind: 'radio'; key: string; label: string; options: string[] }
+  | { kind: 'roles'; key: string; label: string; options: string[]; detailLabel: string }
   | { kind: 'list'; key: string; label: string; itemLabel: string; help?: string }
   | { kind: 'table'; key: string; label: string; columns: Column[]; help?: string }
 
@@ -23,6 +24,7 @@ export type Section = {
 //   checkboxes            -> string[]  (the "Other" text is saved in <key>Other as a string)
 //   list                  -> string[]
 //   table                 -> array of rows, each row is { columnKey: string }
+//   roles                 -> array of { role, detail }; selected may be used only while editing
 export type TableRow = Record<string, string>
 export type FieldValue = string | string[] | TableRow[]
 export type CaseContent = Record<string, Record<string, FieldValue>>
@@ -218,21 +220,14 @@ export const caseTemplate: Section[] = [
     key: 'roles',
     title: 'Roles',
     fields: [
-      checks('participants', 'Participants', [
+      { kind: 'roles', key: 'participants', label: 'Participants', detailLabel: 'number of learners', options: [
         'Primary Active Participants', 'Secondary Active Participants', 'Observers', 'Recorder',
-      ]),
-      text('participantCounts', 'Number of learners per selected role'),
-      checks(
-        'patientEmbedded',
-        'Patient & Embedded Participants',
-        ['Manikin Voice', 'SP', 'Family', 'Charge Nurse', 'Provider', 'Other Healthcare Professional(s)'],
-        true,
-      ),
-      checks(
-        'educatorsStaff',
-        'Educators & Staff',
-        ['Lead Facilitator', 'Co-Facilitator', 'Content Expert', 'SimOps Specialist', 'SP Trainer On-Site'],
-      ),
+      ] },
+      { kind: 'roles', key: 'patientEmbedded', label: 'Patient & Embedded Participants',
+        detailLabel: 'played by or role description',
+        options: ['Manikin Voice', 'SP', 'Family', 'Charge Nurse', 'Provider', 'Other Healthcare Professional(s)'] },
+      { kind: 'roles', key: 'educatorsStaff', label: 'Educators & Staff', detailLabel: 'played by or role description',
+        options: ['Lead Facilitator', 'Co-Facilitator', 'Content Expert', 'SimOps Specialist', 'SP Trainer On-Site'] },
       area('guidelines', 'Guidelines & Information', 'Purpose, focus, and key directions for each role selected above.'),
     ],
   },

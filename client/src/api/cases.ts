@@ -7,6 +7,39 @@ export type CaseSummary = {
   updatedAt: string | null
 }
 
+export type CaseDetail = {
+  id: number
+  title: string
+  currentVersion: {
+    id: number
+    versionNumber: number
+    status: string
+    createdAt: string
+    content: unknown
+  } | null
+}
+
+export async function getCase(caseId: string, signal?: AbortSignal): Promise<CaseDetail> {
+  const response = await fetch('/api/cases/' + encodeURIComponent(caseId), { signal })
+  if (response.status === 404) throw new Error('Case not found.')
+  if (response.status === 401) throw new Error('Sign in to read this case.')
+  if (response.status === 403) throw new Error('You do not have permission to read this case.')
+  if (!response.ok) throw new Error('Could not load the case (status ' + response.status + ').')
+  const data: unknown = await response.json()
+  if (data && typeof data === 'object') {
+    const item = data as Record<string, unknown>
+    const version = item.currentVersion
+    if (typeof item.id === 'number' && typeof item.title === 'string'
+      && (version === null || (version && typeof version === 'object'
+        && typeof (version as Record<string, unknown>).id === 'number'
+        && typeof (version as Record<string, unknown>).versionNumber === 'number'
+        && typeof (version as Record<string, unknown>).status === 'string'
+        && typeof (version as Record<string, unknown>).createdAt === 'string'
+        && 'content' in version))) return data as CaseDetail
+  }
+  throw new Error('The server returned an unexpected case detail.')
+}
+
 // The search and filter values, exactly as they appear in the page URL and the API.
 // A missing key means "Any".
 export const FILTER_KEYS = ['search', 'course', 'campus', 'outcome'] as const

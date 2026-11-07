@@ -11,6 +11,7 @@ import pg from 'pg'
 import request from 'supertest'
 import type { Express } from 'express'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { cleanContent } from '../../client/src/templates/cleanContent'
 
 const url = process.env.TEST_DATABASE_URL
 
@@ -188,5 +189,55 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
       expect(response.body.length).toBeGreaterThan(0)
       expect(seconds).toBeLessThan(10)
     }
+  })
+
+  test('#48 reads the current version and preserves legacy content and history', async () => {
+    const original = await admin.query('SELECT id, content FROM case_version WHERE case_id = 9103 ORDER BY version_number')
+    const response = await request(app).get('/api/cases/9103')
+    expect(response.status).toBe(200)
+    expect(response.body.currentVersion.id).toBe(9204)
+    expect(response.body.currentVersion.versionNumber).toBe(2)
+    expect(response.body.currentVersion.content).toEqual({ topic: 'Synthetic stroke' })
+    expect((await admin.query('SELECT id, content FROM case_version WHERE case_id = 9103 ORDER BY version_number')).rows)
+      .toEqual(original.rows)
+    const empty = await request(app).get('/api/cases/9105')
+    expect(empty.status).toBe(200)
+    expect(empty.body.currentVersion).toBeNull()
+    expect((await request(app).get('/api/cases/2147483647')).status).toBe(404)
+  })
+
+  test('#44 saves selected role details and reads them back without losing blanks or ranges', async () => {
+    const content = cleanContent({
+      roles: {
+        participants: [
+          { role: 'Observers', detail: '6-10', selected: 'true' },
+          { role: 'Recorder', detail: '', selected: 'true' },
+          { role: 'Primary Active Participants', detail: 'Omit this', selected: 'false' },
+        ],
+        patientEmbedded: [{ role: 'Charge Nurse', detail: 'Synthetic faculty role' }],
+        educatorsStaff: [{ role: 'Lead Facilitator', detail: 'Synthetic facilitator role' }],
+      },
+      patientChart: { historyOfPresentIllness: 'Synthetic first line\nSynthetic second line' },
+    })
+    const created = await request(app).post('/api/cases').send({ title: '[TEST] Synthetic role round trip', content })
+    expect(created.status).toBe(201)
+    const detail = await request(app).get('/api/cases/' + created.body.id)
+    expect(detail.status).toBe(200)
+    expect(detail.body.currentVersion.content).toEqual(content)
+    expect(detail.body.currentVersion.content.roles.participants).toEqual([
+      { role: 'Observers', detail: '6-10' }, { role: 'Recorder', detail: '' },
+    ])
+    const listed = await request(app).get('/api/cases?search=Synthetic%20role%20round%20trip')
+    expect(listed.body.map((row: { id: number }) => row.id)).toContain(created.body.id)
+  })
+
+  test('#48 returns old role selections and additional saved keys unchanged', async () => {
+    const content = { roles: { participants: ['Observers'], participantCounts: '6-10',
+      patientEmbeddedOther: 'Synthetic legacy role note' }, retiredSection: { oldField: 'Synthetic old value' } }
+    const created = await request(app).post('/api/cases').send({ title: '[TEST] Synthetic legacy round trip', content })
+    expect(created.status).toBe(201)
+    const detail = await request(app).get('/api/cases/' + created.body.id)
+    expect(detail.status).toBe(200)
+    expect(detail.body.currentVersion.content).toEqual(content)
   })
 })
