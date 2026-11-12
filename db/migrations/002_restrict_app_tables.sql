@@ -1,0 +1,16 @@
+BEGIN;
+
+-- Existing databases only. No rows, role values, or columns are changed.
+ALTER TABLE public.campus ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_user ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.course ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.outcome ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sim_case ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_version ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tag ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_version_tag ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_use ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_version_outcome ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.review ENABLE ROW LEVEL SECURITY;
+
+COMMIT;

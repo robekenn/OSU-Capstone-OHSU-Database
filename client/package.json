@@ -12,6 +12,7 @@
     "test": "tsx --tsconfig tsconfig.app.json --test tests/cases.test.tsx tests/case-filters.test.tsx tests/theme.test.ts tests/case-detail.test.tsx tests/role-fields.test.tsx"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5"
