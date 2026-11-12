@@ -1,5 +1,5 @@
-import type { MouseEvent } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import type { MouseEvent, ReactNode } from 'react'
+import { NavLink } from 'react-router-dom'
 
 const MAIN_ID = 'main-content'
 
@@ -14,7 +14,11 @@ function skipToMain(event: MouseEvent<HTMLAnchorElement>) {
   main.scrollIntoView()
 }
 
-export default function Layout() {
+export default function Layout({ children, onSignOut, signOutError }: {
+  children: ReactNode
+  onSignOut: () => Promise<void>
+  signOutError: string
+}) {
   return (
     <>
       <a className="skip-link" href={`#${MAIN_ID}`} onClick={skipToMain}>
@@ -31,13 +35,15 @@ export default function Layout() {
             <li>
               <NavLink to="/cases">Cases</NavLink>
             </li>
+            <li><button type="button" onClick={() => void onSignOut()}>Sign out</button></li>
           </ul>
         </nav>
       </header>
 
       {/* tabIndex -1 lets the skip link focus <main> without adding it to the Tab order */}
       <main id={MAIN_ID} tabIndex={-1}>
-        <Outlet />
+        {signOutError && <p className="error" role="alert">{signOutError}</p>}
+        {children}
       </main>
     </>
   )

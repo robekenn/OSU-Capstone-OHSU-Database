@@ -1,0 +1,71 @@
+.sign-in {
+  box-sizing: border-box;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: var(--surface-alt);
+}
+
+.sign-in-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  width: min(100%, 57rem);
+  border: var(--border-width) solid var(--border);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.sign-in-intro, .sign-in-panel { padding: clamp(1.5rem, 5vw, 3.5rem); }
+.sign-in-intro { background: var(--accent-hover); color: var(--on-accent); }
+.sign-in-mark {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border: 1px solid currentColor;
+  border-radius: 0.75rem;
+}
+.sign-in-eyebrow {
+  margin: var(--space-8) 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.sign-in-intro h2 {
+  margin: 0;
+  color: inherit;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  letter-spacing: -0.04em;
+}
+.sign-in-badge {
+  display: inline-block;
+  margin-top: var(--space-6);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-sm);
+}
+.sign-in-panel h1 { margin: 0 0 var(--space-2); font-size: 2rem; }
+.sign-in-panel > p { margin: 0; color: var(--text-muted); }
+.sign-in-form { display: grid; margin: var(--space-8) 0 var(--space-6); }
+.sign-in-form label { margin-bottom: var(--space-1); font-weight: 650; }
+.sign-in-form input { width: 100%; min-height: 2.875rem; }
+.sign-in-form label[for='sign-in-password'] { margin-top: var(--space-4); }
+.sign-in-password { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
+.sign-in-password button { padding-inline: var(--space-2); font-size: var(--font-size-sm); }
+.sign-in-form button[type='submit'] { min-height: 2.875rem; margin-top: var(--space-6); }
+.sign-in-help {
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 680px) {
+  .sign-in-frame { grid-template-columns: minmax(0, 1fr); }
+  .sign-in-eyebrow { margin-top: var(--space-4); }
+  .sign-in-break { display: none; }
+  .sign-in-badge { margin-top: 0; }
+}
