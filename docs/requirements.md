@@ -4,7 +4,7 @@
 Faculty at the OHSU School of Nursing run simulation cases across multiple campuses. Each case is a long document. There is no central place to store them, so faculty cannot easily find a case by course, campus, or learning outcome, tell which copy is current, or reuse a case at another campus.
 
 ## Functional Requirements
-FR-1: Users sign in through OHSU's OIDC provider. Acceptance: A request without a valid token gets 401 on every route except the health check.
+FR-1: Only team-provisioned OHSU instructor accounts can sign in. There is no self-service signup or Owner/Admin hierarchy. Acceptance: a missing or invalid token gets 401 on protected API routes; an authenticated but unapproved identity gets 403. The health check remains public and contains no application data.
 
 FR-2: An author creates a case with a title and template content, saved as a draft. Acceptance: A missing title returns 400 and writes nothing; success writes one case row and one version row in a single transaction.
 
@@ -32,7 +32,7 @@ NFR-3: Saving a case takes under 10 seconds. It will be measured on the template
 ## Constraints
 C-1: PostgreSQL, Node.js + Express (TypeScript), React + TypeScript.
 
-C-2: Sign-in through OHSU OIDC.
+C-2: Supabase Auth provides development sign-in; OHSU OIDC remains the documented production target pending partner confirmation of the identity setup.
 
 C-3: No real patient data.
 

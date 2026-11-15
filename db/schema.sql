@@ -94,3 +94,17 @@ CREATE TABLE review (
 CREATE INDEX idx_case_version_case ON case_version(case_id);
 CREATE INDEX idx_case_use_campus_course ON case_use(campus_id, course_id);
 CREATE INDEX idx_review_version ON review(case_version_id);
+
+-- The Express API owns access to these tables. Do not expose rows through
+-- Supabase's Data API to anon or authenticated roles.
+ALTER TABLE public.campus ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_user ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.course ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.outcome ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sim_case ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_version ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tag ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_version_tag ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_use ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_version_outcome ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.review ENABLE ROW LEVEL SECURITY;

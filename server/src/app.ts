@@ -1,4 +1,5 @@
 import express from 'express'
+import { requireInstructor } from './auth.js'
 import { casesRouter } from './routes/cases.js'
 import { lookupsRouter } from './routes/lookups.js'
 
@@ -11,6 +12,10 @@ export function createApp() {
     res.json({ status: 'ok' })
   })
 
+  app.use('/api', requireInstructor)
+  app.get('/api/auth/me', (_req, res) => {
+    res.json({ id: res.locals.instructorId })
+  })
   app.use('/api/cases', casesRouter())
   app.use('/api', lookupsRouter())
 
@@ -21,9 +26,8 @@ export function createApp() {
 
   // Catches errors thrown in routes. It never sends details back or logs request bodies,
   // because those can hold case content.
-  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    const message = err instanceof Error ? err.message : 'unknown error'
-    console.error('Unhandled error:', message)
+  app.use((_err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('Unhandled API error')
     res.status(500).json({ error: 'internal_error' })
   })
 

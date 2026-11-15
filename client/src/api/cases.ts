@@ -1,4 +1,5 @@
 import type { CaseContent } from '../templates/caseTemplate'
+import { appFetch } from './http'
 
 export type CaseSummary = {
   id: number
@@ -20,7 +21,7 @@ export type CaseDetail = {
 }
 
 export async function getCase(caseId: string, signal?: AbortSignal): Promise<CaseDetail> {
-  const response = await fetch('/api/cases/' + encodeURIComponent(caseId), { signal })
+  const response = await appFetch('/api/cases/' + encodeURIComponent(caseId), { signal })
   if (response.status === 404) throw new Error('Case not found.')
   if (response.status === 401) throw new Error('Sign in to read this case.')
   if (response.status === 403) throw new Error('You do not have permission to read this case.')
@@ -62,7 +63,7 @@ export function filtersToQuery(filters: CaseFilters): string {
 export class InvalidFilterError extends Error {}
 
 export async function listCases(filters: CaseFilters = {}, signal?: AbortSignal): Promise<CaseSummary[]> {
-  const response = await fetch('/api/cases' + filtersToQuery(filters), { signal })
+  const response = await appFetch('/api/cases' + filtersToQuery(filters), { signal })
   if (response.status === 400) {
     // Usually a bookmarked filter whose course, campus or outcome no longer exists.
     const body: unknown = await response.json().catch(() => null)
@@ -97,7 +98,7 @@ const isNullableString = (value: unknown) => value === null || typeof value === 
 
 // Fetches one of the lookup lists and checks every row has the expected fields.
 async function fetchList<T>(path: string, fields: Record<string, (value: unknown) => boolean>, signal?: AbortSignal): Promise<T[]> {
-  const response = await fetch(path, { signal })
+  const response = await appFetch(path, { signal })
   if (!response.ok) {
     throw new Error('Could not load filter options (status ' + response.status + ').')
   }
@@ -122,7 +123,7 @@ export const listOutcomes = (signal?: AbortSignal) =>
   fetchList<Outcome>('/api/outcomes', { framework: isString, code: isNullableString, description: isString }, signal)
 
 export async function createCase(title: string, content: CaseContent): Promise<{ id: number; versionId: number }> {
-  const response = await fetch('/api/cases', {
+  const response = await appFetch('/api/cases', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, content }),

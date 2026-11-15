@@ -141,13 +141,17 @@ export function casesRouter() {
 
     try {
       const created = await withTransaction(async (client) => {
-        const caseResult = await client.query('INSERT INTO sim_case (title) VALUES ($1) RETURNING id', [title])
+        const instructorId: number = res.locals.instructorId
+        const caseResult = await client.query(
+          'INSERT INTO sim_case (title, owner_id) VALUES ($1, $2) RETURNING id',
+          [title, instructorId],
+        )
         const caseId: number = caseResult.rows[0].id
 
         const versionResult = await client.query(
-          `INSERT INTO case_version (case_id, version_number, status, content)
-           VALUES ($1, 1, 'draft', $2) RETURNING id`,
-          [caseId, JSON.stringify(content)],
+          `INSERT INTO case_version (case_id, version_number, status, content, created_by)
+           VALUES ($1, 1, 'draft', $2, $3) RETURNING id`,
+          [caseId, JSON.stringify(content), instructorId],
         )
         const versionId: number = versionResult.rows[0].id
 

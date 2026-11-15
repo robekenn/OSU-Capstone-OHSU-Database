@@ -12,7 +12,7 @@ Early development. The repository currently contains:
 - A Node.js + Express + TypeScript API (`server/`) with `GET /api/health`, `GET /api/cases` (search and filters), `POST /api/cases`, and the `GET /api/courses`, `/api/campuses` and `/api/outcomes` lists behind the filter dropdowns
 - Requirements and recorded design decisions (`docs/`)
 
-The stack is PostgreSQL, Node.js + Express (TypeScript) and React + TypeScript (see `docs/requirements.md`, Constraints). Sign-in through OHSU's OIDC provider is required but not built yet, so the app has no login and every route is open. Hosting is waiting on OHSU IT approval.
+The stack is PostgreSQL, Node.js + Express (TypeScript) and React + TypeScript. The development build uses Supabase Auth with team-provisioned instructor access. There is no public signup or in-app account management. OHSU's production identity and hosting requirements are pending partner confirmation.
 
 ## Quickstart
 
@@ -51,7 +51,7 @@ When you're finished: `docker rm -f ohsu-pg`
 
 ### 2b. Or run the tests with a local PostgreSQL
 
-Point the standard `PG*` environment variables at a server where your user can create databases:
+Point the standard `PG*` environment variables at a disposable PostgreSQL server where your user can create databases and roles (the privacy test creates a role and rolls it back):
 
 ```bash
 PGHOST=localhost PGUSER=postgres bash db/test.sh
@@ -65,8 +65,9 @@ Loading schema.sql into empty database ohsu_sim_test
 PASS  test_cases_and_versions.sql
 PASS  test_filters.sql
 PASS  test_outcome_mapping.sql
+PASS  test_private_tables.sql
 PASS  test_reviews_users_tags.sql
-4 passed, 0 failed
+5 passed, 0 failed
 ```
 
 The `NOTICE` line is normal. The script creates a temporary database named `ohsu_sim_test`, loads the schema, runs the tests and drops the database when it finishes.
@@ -115,13 +116,14 @@ The API needs a PostgreSQL database it can reach on `localhost:5432` with `db/sc
 
   If something else is already using port 5432 (such as a local PostgreSQL), stop it first or map another port, for example `-p 5433:5432`, and use that port in step 2.
 
-### 2. Configure the API
+### 2. Configure the API and sign-in
 
 ```bash
 cp server/.env.example server/.env
+cp client/.env.example client/.env
 ```
 
-Edit `DATABASE_URL` in `server/.env` to point at your database. With the Docker container above it is `postgres://postgres@localhost:5432/ohsu_sim`. `server/.env` is ignored by Git and blocked by CI; never commit it or paste its contents anywhere.
+Point `DATABASE_URL` at your database. Configure the Supabase Auth URL and public key in both workspaces using the example files. Use the same identity project for both. Never commit either environment file or use a service-role key in the client. Follow [Instructor access](docs/instructor-access.md) to provision an account or run the local-only demo.
 
 ### 3. Install and start
 
@@ -131,7 +133,7 @@ npm run dev --workspace server   # terminal 1: API on http://localhost:3000
 npm run dev --workspace client   # terminal 2: prints the client URL
 ```
 
-The API checks the database connection when it starts and exits with an error if it can't connect. Open the client URL; `/` redirects to `/cases`. [Cases list demo (#37)](docs/issue-37-demo.md) has a step-by-step walkthrough using synthetic data.
+The API checks the database connection at startup. Open the client URL and sign in; approved instructors land on `/cases`. [Cases list demo (#37)](docs/issue-37-demo.md) has a walkthrough using synthetic data.
 
 ### App checks
 

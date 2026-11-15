@@ -10,7 +10,7 @@ import { resolve } from 'node:path'
 import pg from 'pg'
 import request from 'supertest'
 import type { Express } from 'express'
-import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 import { cleanContent } from '../../client/src/templates/cleanContent'
 
 const url = process.env.TEST_DATABASE_URL
@@ -19,6 +19,11 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
   let app: Express
   let admin: pg.Client
   let closePool: () => Promise<void>
+  const subject = 'b3c743ae-fb5e-4626-a1a0-f284a779cc9f'
+  const instructor = {
+    get: (path: string) => request(app).get(path).set('Authorization', 'Bearer synthetic-session'),
+    post: (path: string) => request(app).post(path).set('Authorization', 'Bearer synthetic-session'),
+  }
 
   beforeAll(async () => {
     const dbName = new URL(url!).pathname.slice(1)
@@ -30,6 +35,10 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
     await admin.connect()
     await admin.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
     await admin.query(readFileSync(resolve(__dirname, '../../db/schema.sql'), 'utf8'))
+    await admin.query(
+      "INSERT INTO app_user (id, oidc_subject, name, email, role) VALUES (9001, $1, 'Synthetic Instructor', 'instructor@example.test', 'instructor')",
+      [subject],
+    )
 
     // Same shape as db/tests/test_filters.sql, plus D (two uses) and E (no version).
     //   A: North / TEST 101, current v1 -> TF-1
@@ -63,6 +72,9 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
     `)
 
     process.env.DATABASE_URL = url
+    vi.stubEnv('SUPABASE_URL', 'https://identity.example.test')
+    vi.stubEnv('SUPABASE_PUBLISHABLE_KEY', 'synthetic-publishable-placeholder')
+    vi.stubGlobal('fetch', async () => Response.json({ id: subject }))
     // Imported only now, because db.ts reads DATABASE_URL when it loads.
     const appModule = await import('../src/app.js')
     const dbModule = await import('../src/db.js')
@@ -71,12 +83,14 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
   })
 
   afterAll(async () => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
     await closePool?.()
     await admin?.end()
   })
 
   async function titles(query: string): Promise<string[]> {
-    const response = await request(app).get('/api/cases' + query)
+    const response = await instructor.get('/api/cases' + query)
     expect(response.status).toBe(200)
     return (response.body as { title: string }[]).map((row) => row.title).sort()
   }
@@ -118,7 +132,7 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
   })
 
   test('a case used in several courses is listed once', async () => {
-    const response = await request(app).get('/api/cases?campus=9402')
+    const response = await instructor.get('/api/cases?campus=9402')
     const ids = (response.body as { id: number }[]).map((row) => row.id)
     expect(ids.length).toBe(new Set(ids).size)
   })
@@ -141,26 +155,26 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
     ['unknown course', '?course=999999', ['course']],
     ['unknown campus and outcome', '?campus=999999&outcome=999999', ['campus', 'outcome']],
   ])('an invalid or unknown id (%s) is a 400, not a 500', async (_label, query, fields) => {
-    const response = await request(app).get('/api/cases' + query)
+    const response = await instructor.get('/api/cases' + query)
     expect(response.status).toBe(400)
     expect(response.body).toEqual({ error: 'invalid_request', fields })
   })
 
   test('lookup lists return id and display fields, sorted', async () => {
-    const courses = await request(app).get('/api/courses')
+    const courses = await instructor.get('/api/courses')
     expect(courses.status).toBe(200)
     expect(courses.body).toEqual([
       { id: 9501, code: 'TEST 101', title: 'Synthetic Course 101' },
       { id: 9502, code: 'TEST 202', title: null },
     ])
 
-    const campuses = await request(app).get('/api/campuses')
+    const campuses = await instructor.get('/api/campuses')
     expect(campuses.body).toEqual([
       { id: 9401, name: 'Synthetic Campus North' },
       { id: 9402, name: 'Synthetic Campus South' },
     ])
 
-    const outcomes = await request(app).get('/api/outcomes')
+    const outcomes = await instructor.get('/api/outcomes')
     expect(outcomes.body.map((row: { id: number }) => row.id)).toEqual([9303, 9301, 9302])
     expect(outcomes.body[0]).toEqual({
       id: 9303, framework: 'Another Framework', code: null, description: 'Synthetic outcome without a code',
@@ -183,7 +197,7 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
 
     for (const query of ['', '?search=load&course=9502&campus=9402&outcome=9302']) {
       const started = performance.now()
-      const response = await request(app).get('/api/cases' + query)
+      const response = await instructor.get('/api/cases' + query)
       const seconds = (performance.now() - started) / 1000
       expect(response.status).toBe(200)
       expect(response.body.length).toBeGreaterThan(0)
@@ -193,17 +207,17 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
 
   test('#48 reads the current version and preserves legacy content and history', async () => {
     const original = await admin.query('SELECT id, content FROM case_version WHERE case_id = 9103 ORDER BY version_number')
-    const response = await request(app).get('/api/cases/9103')
+    const response = await instructor.get('/api/cases/9103')
     expect(response.status).toBe(200)
     expect(response.body.currentVersion.id).toBe(9204)
     expect(response.body.currentVersion.versionNumber).toBe(2)
     expect(response.body.currentVersion.content).toEqual({ topic: 'Synthetic stroke' })
     expect((await admin.query('SELECT id, content FROM case_version WHERE case_id = 9103 ORDER BY version_number')).rows)
       .toEqual(original.rows)
-    const empty = await request(app).get('/api/cases/9105')
+    const empty = await instructor.get('/api/cases/9105')
     expect(empty.status).toBe(200)
     expect(empty.body.currentVersion).toBeNull()
-    expect((await request(app).get('/api/cases/2147483647')).status).toBe(404)
+    expect((await instructor.get('/api/cases/2147483647')).status).toBe(404)
   })
 
   test('#44 saves selected role details and reads them back without losing blanks or ranges', async () => {
@@ -219,24 +233,29 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
       },
       patientChart: { historyOfPresentIllness: 'Synthetic first line\nSynthetic second line' },
     })
-    const created = await request(app).post('/api/cases').send({ title: '[TEST] Synthetic role round trip', content })
+    const created = await instructor.post('/api/cases').send({ title: '[TEST] Synthetic role round trip', content })
     expect(created.status).toBe(201)
-    const detail = await request(app).get('/api/cases/' + created.body.id)
+    const attribution = await admin.query(
+      'SELECT c.owner_id, v.created_by FROM sim_case c JOIN case_version v ON v.id = c.current_version_id WHERE c.id = $1',
+      [created.body.id],
+    )
+    expect(attribution.rows).toEqual([{ owner_id: 9001, created_by: 9001 }])
+    const detail = await instructor.get('/api/cases/' + created.body.id)
     expect(detail.status).toBe(200)
     expect(detail.body.currentVersion.content).toEqual(content)
     expect(detail.body.currentVersion.content.roles.participants).toEqual([
       { role: 'Observers', detail: '6-10' }, { role: 'Recorder', detail: '' },
     ])
-    const listed = await request(app).get('/api/cases?search=Synthetic%20role%20round%20trip')
+    const listed = await instructor.get('/api/cases?search=Synthetic%20role%20round%20trip')
     expect(listed.body.map((row: { id: number }) => row.id)).toContain(created.body.id)
   })
 
   test('#48 returns old role selections and additional saved keys unchanged', async () => {
     const content = { roles: { participants: ['Observers'], participantCounts: '6-10',
       patientEmbeddedOther: 'Synthetic legacy role note' }, retiredSection: { oldField: 'Synthetic old value' } }
-    const created = await request(app).post('/api/cases').send({ title: '[TEST] Synthetic legacy round trip', content })
+    const created = await instructor.post('/api/cases').send({ title: '[TEST] Synthetic legacy round trip', content })
     expect(created.status).toBe(201)
-    const detail = await request(app).get('/api/cases/' + created.body.id)
+    const detail = await instructor.get('/api/cases/' + created.body.id)
     expect(detail.status).toBe(200)
     expect(detail.body.currentVersion.content).toEqual(content)
   })
