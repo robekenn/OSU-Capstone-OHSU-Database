@@ -124,3 +124,30 @@
 .case-form > button[type='submit'] {
   margin-top: var(--space-4);
 }
+
+/* Section navigation: a row of buttons. The current section is bold, underlined and has a
+   thicker border, so it never relies on color alone. */
+   .case-form .section-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-6);
+    padding: 0;
+    list-style: none;
+  }
+  
+  .case-form .section-nav button[aria-current='step'] {
+    font-weight: 700;
+    text-decoration: underline;
+    border-width: calc(var(--border-width) * 3);
+  }
+  
+  .case-form h3 {
+    margin: var(--space-6) 0 var(--space-2);
+  }
+  
+  .case-form .section-buttons {
+    display: flex;
+    gap: var(--space-2);
+    margin: var(--space-4) 0;
+  }
