@@ -19,6 +19,10 @@ erDiagram
   sim_case ||--o{ case_use : ""
   campus ||--o{ case_use : ""
   course ||--o{ case_use : ""
+  sim_case ||--o{ case_file : "attached to"
+  app_user ||--o{ case_file : "uploaded by"
+  case_version ||--o{ case_version_file : ""
+  case_file ||--o{ case_version_file : ""
 
   campus {
     int id PK
@@ -88,5 +92,21 @@ erDiagram
     text decision
     text comments
     timestamp decided_at
+  }
+  case_file {
+    int id PK
+    int case_id FK
+    text storage_key UK
+    text original_filename
+    text media_type
+    bigint size_bytes
+    text sha256
+    int uploaded_by FK
+    timestamp uploaded_at
+  }
+  case_version_file {
+    int case_version_id PK
+    int case_file_id PK
+    int case_id FK
   }
 ```

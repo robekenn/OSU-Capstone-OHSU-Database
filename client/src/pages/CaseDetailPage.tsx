@@ -2,6 +2,7 @@ import React from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { getCase } from '../api/cases'
 import type { CaseDetail } from '../api/cases'
+import { CaseAttachments } from '../components/CaseAttachments'
 import { CaseContentView } from '../components/CaseContentView'
 import { casesReturnTo } from './caseFilters'
 
@@ -43,6 +44,7 @@ export default function CaseDetailPage() {
       <p>Status: {version.status} · Version: {version.versionNumber}</p>
       <p>Saved: {date && !Number.isNaN(date.getTime()) ? <time dateTime={version.createdAt}>{date.toLocaleString()}</time> : 'Not available'}</p>
       <CaseContentView content={version.content} />
+      <CaseAttachments caseId={String(detail.id)} />
     </> : <p>No current version is available for this case.</p>)}
   </article>
 }

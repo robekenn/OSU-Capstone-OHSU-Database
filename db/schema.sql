@@ -45,7 +45,9 @@ CREATE TABLE case_version (
   change_note TEXT,
   created_by INT REFERENCES app_user(id),
   created_at TIMESTAMP NOT NULL DEFAULT now(),
-  UNIQUE (case_id, version_number)
+  UNIQUE (case_id, version_number),
+  -- Lets case_version_file require that a file and a version share one case.
+  UNIQUE (id, case_id)
 );
 
 -- Now that case_version exists, finish the link from sim_case
@@ -91,7 +93,47 @@ CREATE TABLE review (
 );
 
 
+-- ATTACHMENTS (#63)
+-- Metadata for a file attached to a case. The bytes live in private object
+-- storage under storage_key; binary content never goes in PostgreSQL. A row is
+-- written only after the stored object has been checked, so a failed upload
+-- leaves no row. Rows are never deleted: removing an attachment only unlinks it
+-- from the current version (case_version_file), and older versions keep theirs.
+CREATE TABLE case_file (
+  id SERIAL PRIMARY KEY,
+  case_id INT NOT NULL REFERENCES sim_case(id),
+  storage_key TEXT NOT NULL UNIQUE CHECK (storage_key ~ '^cases/[0-9]+/[0-9a-f-]{36}$'),
+  original_filename TEXT NOT NULL
+    CHECK (length(original_filename) BETWEEN 1 AND 255 AND original_filename = btrim(original_filename)),
+  media_type TEXT NOT NULL CHECK (media_type IN (
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/png',
+    'image/jpeg')),
+  -- 25 MiB per file (design.md section 3.3).
+  size_bytes BIGINT NOT NULL CHECK (size_bytes BETWEEN 1 AND 26214400),
+  sha256 TEXT NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+  uploaded_by INT NOT NULL REFERENCES app_user(id),
+  uploaded_at TIMESTAMP NOT NULL DEFAULT now(),
+  UNIQUE (id, case_id)
+);
+
+-- Which files each version has. A new version copies its predecessor's links;
+-- versions never share rows, so unlinking from one leaves the others intact.
+CREATE TABLE case_version_file (
+  case_version_id INT NOT NULL,
+  case_file_id INT NOT NULL,
+  case_id INT NOT NULL,
+  PRIMARY KEY (case_version_id, case_file_id),
+  FOREIGN KEY (case_version_id, case_id) REFERENCES case_version(id, case_id),
+  FOREIGN KEY (case_file_id, case_id) REFERENCES case_file(id, case_id)
+);
+
 CREATE INDEX idx_case_version_case ON case_version(case_id);
+CREATE INDEX idx_case_file_case ON case_file(case_id);
+CREATE INDEX idx_case_version_file_file ON case_version_file(case_file_id);
 CREATE INDEX idx_case_use_campus_course ON case_use(campus_id, course_id);
 CREATE INDEX idx_review_version ON review(case_version_id);
 
@@ -108,3 +150,5 @@ ALTER TABLE public.case_version_tag ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.case_use ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.case_version_outcome ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.review ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_file ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.case_version_file ENABLE ROW LEVEL SECURITY;
