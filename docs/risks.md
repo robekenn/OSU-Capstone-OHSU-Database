@@ -6,27 +6,27 @@ This is the single risk register for the project. Review it at each sprint plann
 
 Risks are listed in priority order. Likelihood and impact use High, Medium, or Low.
 
-## R-1 — Hosting approval or account access may arrive too late
+## R-1 — OHSU may not accept the leading hosting and sign-in setup
 
 - Category: Business
-- Likelihood: Medium — follow-up is in progress, but the response date and account arrangements are not confirmed.
-- Impact: High — the Week 10 deployment depends on an agreed target and access to it.
-- Owner: [team member tracking hosting]
-- Status: Open — follow-up in progress
+- Likelihood: Low — a Vercel + Supabase deployment already runs with synthetic data, so the team is not blocked waiting for an environment.
+- Impact: High — if OHSU requires different hosting or OHSU single sign-on (OIDC) late in the project, deployment, sign-in, and storage work may need to be redone.
+- Owner: Kenneth Robertson
+- Status: Open
 
-The requirements leave AWS approval as an open question. If the hosting decision or account access arrives later than needed, the team may not have enough time to deploy and test the walking skeleton in the agreed environment.
+The leading option is Vercel for the client and API, with Supabase for the database, Auth, and file storage (requirements OQ-1). It is not final. If OHSU IT rejects it, or requires its own hosting or SSO after the team has built on it, the team may not have enough time to move and retest before the final deployment.
 
 Response — Mitigate:
-- Continue the existing follow-up.
-- Confirm the deployment target, account owner, required approvals, and expected access date.
-- Record the partner-agreed target in `docs/design.md`.
-- Set a deployment setup date and use it to track the external dependencies.
+- Confirm with the partner and OHSU IT whether Vercel + Supabase is acceptable and whether SSO is required.
+- Keep hosting-specific settings in environment variables and documented setup steps, not in application code.
+- Record the outcome in `docs/requirements.md` (OQ-1) and `docs/design.md`.
+- Set a date by which the hosting and sign-in decision must be made.
 
-Trigger: The deployment setup date is reached without the required approval or access.
+Trigger: OHSU rejects Vercel + Supabase or requires SSO, or the decision date passes without an answer.
 
-Contingency: Agree on a permitted fallback with the partner and instruction team before relying on it.
+Contingency: Agree on a permitted fallback with the partner and instruction team before relying on it. Keep the local-only setup working so the team can demonstrate the app regardless of hosting.
 
-Priority reason: This risk ranks first because it depends on an external timeline and directly affects the deployment gate.
+Priority reason: This risk ranks first because it depends on an external decision and could force rework across deployment, sign-in, and storage.
 
 ## R-2 — Different implementation assumptions may cause integration rework
 
@@ -55,35 +55,35 @@ Priority reason: This risk ranks second because it affects parallel development,
 
 “Not recorded” means this register needs confirmation. It does not mean no one has acted.
 
-### E-1 — Hosting approval and deployment target
+### E-1 — Hosting and sign-in decision
 
-- Needed for: Week 10 deployment.
-- Requester: Requirements identify Calvin as asking OHSU IT; confirm the actual requester.
-- Recipient: OHSU IT; specific contact not recorded.
+- Needed for: Final deployment.
+- Requester: Kenneth Robertson (owner of requirements OQ-1).
+- Recipient: OHSU IT and the project partner; specific contact not recorded.
 - Request date: Not recorded.
 - Expected response: Not recorded.
-- Status: Follow-up in progress.
-- Next action: Record the request details, decision, and expected response date.
+- Status: Open. Vercel + Supabase is the leading option; whether OHSU requires other hosting or SSO is unknown.
+- Next action: Ask whether Vercel + Supabase is acceptable and whether SSO is required, then record the answer and date.
 
-### E-2 — Hosting account and deployment access
+### E-2 — Hosting account ownership and access
 
-- Needed for: Deployment setup and operation.
+- Needed for: Deployment setup, operation, and handoff.
 - Requester: Not recorded.
-- Recipient: Account owner or access provider; not recorded.
+- Recipient: Owners of the Vercel project and the Supabase project; not recorded.
 - Request date: Not recorded.
-- Start by: [date before deployment setup begins].
-- Status: Confirm whether this is included in E-1.
-- Next action: Name the account owner and confirm who provides access and when.
+- Start by: Before the final deployment and handoff.
+- Status: A Vercel deployment and Supabase Auth are in use. Who owns each account, and which teammates have dashboard access, is not recorded.
+- Next action: Name the account owners, record who has access, and confirm how the accounts transfer to OHSU at handoff.
 
 ### E-3 — OHSU identity integration
 
-- Needed for: FR-1 in a later development stage.
+- Needed for: Production sign-in, only if OHSU requires SSO (OQ-1).
 - Requester: Not recorded.
 - Recipient: Calvin is the IT contact identified in requirements; confirm the appropriate IT recipient.
 - Request date: Not recorded.
 - Start by: [date that allows the confirmed lead time before integration].
-- Status: Login is deferred from the first prototype. Whether an integration request has been made is not recorded.
-- Next action: Confirm the identity provider, application-registration process, and expected lead time.
+- Status: Sign-in with Supabase Auth and team-provisioned instructor accounts is implemented (FR-1). Whether OHSU SSO is required is open.
+- Next action: Resolve as part of E-1. If SSO is required, confirm the identity provider, application-registration process, and expected lead time.
 
 ### E-4 — Permitted use of partner templates
 

@@ -1,7 +1,7 @@
 # OHSU Simulation Case Database — System Design
 
 **Status:** Draft  
-**Last updated:** 2026-11-05  
+**Last updated:** 2026-11-17  
 **Scope:** Current repository state and the next implementation phase
 
 This document is the shared technical design for the OHSU Simulation Case Database. It distinguishes implemented behavior from planned or pending decisions so that the team does not treat an RFC recommendation as deployed architecture.
@@ -16,7 +16,9 @@ This document is the shared technical design for the OHSU Simulation Case Databa
 
 The system will give OHSU School of Nursing faculty a central place to create, find, review, adapt, and maintain simulation cases across campuses. A case has stable identity and one or more immutable versions. Versions can be tagged, associated with learning outcomes, submitted for peer review, approved, exported, and superseded without erasing earlier history.
 
-The repository currently contains an **implemented PostgreSQL schema, database tests, and CI**, plus an **initial React and TypeScript client** (app shell, New case form, and case listing, search, and details) and an **initial Node.js, Express, and TypeScript API**. The development app supports sign-in for team-provisioned instructors through Supabase Auth. The architecture diagrams below describe the target OHSU OpenID Connect (OIDC) integration; the exact production identity-provider configuration and hosting remain **pending OHSU IT approval**. Private S3-compatible object storage and an AWS deployment have RFC recommendations, but neither should be described as accepted or implemented yet.
+The repository currently contains an **implemented PostgreSQL schema, database tests, and CI**, plus an **initial React and TypeScript client** (sign-in page, app shell, New case form, and case listing, search, and details) and an **initial Node.js, Express, and TypeScript API**. Users are OHSU instructors only; student accounts and an Owner/Admin hierarchy are non-goals (see `requirements.md`). Instructors sign in through Supabase Auth with team-provisioned accounts. `vercel.json` deploys the client and API to Vercel.
+
+Hosting and production sign-in are **pending** (requirements OQ-1). The leading option is Vercel for the client and API, with Supabase for the PostgreSQL database, Auth, and file storage. It is not final, and there is no accepted RFC for it. Whether production sign-in must use OHSU single sign-on (OIDC) is also open. The earlier AWS hosting RFC and the S3 storage RFC remain Draft/Proposed recommendations; neither should be described as accepted or implemented.
 
 The first useful release should support the complete path from authenticated case creation through versioning, search, review, and export. It must use synthetic simulation data only; real patient data and personally identifiable learner, faculty, or staff data are outside the system boundary.
 
@@ -26,24 +28,24 @@ The first useful release should support the complete path from authenticated cas
 
 ```mermaid
 flowchart TB
-    users["OHSU faculty, reviewers, and administrators"]
+    users["OHSU instructors"]
     system["OHSU Simulation Case Database"]
-    oidc["OHSU OIDC identity provider"]
-    hosting["OHSU IT-approved hosting environment"]
+    idp["Identity provider\nSupabase Auth today; OHSU SSO (OIDC) undecided"]
+    hosting["Hosting environment\nVercel + Supabase leading option; not final"]
 
     users -->|Create, search, review, and export cases| system
-    system -->|Authenticate users and obtain identity claims| oidc
+    system -->|Authenticate users and obtain identity claims| idp
     hosting -.->|Approval, infrastructure, and operational constraints| system
 ```
 
-The application owns simulation-case content and workflow state. OHSU's identity provider owns authentication. OHSU IT controls which hosting environment and cloud services may be used. Users interact only through the web application; they do not access the database or stored files directly.
+The application owns simulation-case content and workflow state. The identity provider owns authentication: Supabase Auth today, with OHSU single sign-on still possible for production. OHSU IT may still constrain which hosting environment and cloud services can be used. Users interact only through the web application; they do not access the database or stored files directly.
 
 ### 2.2 C4 Level 2 — Container design
 
 ```mermaid
 flowchart TB
     user["Authenticated browser user"]
-    oidc["OHSU OIDC provider"]
+    idp["Identity provider\nSupabase Auth today"]
 
     subgraph system["OHSU Simulation Case Database"]
         web["React + TypeScript web client\nInitial version implemented"]
@@ -53,19 +55,20 @@ flowchart TB
     end
 
     user -->|HTTPS| web
-    web -->|REST/JSON over HTTPS| api
-    api -->|OIDC authentication| oidc
+    user -->|Sign in| idp
+    web -->|REST/JSON over HTTPS with bearer token| api
+    api -->|Verify token| idp
     api -->|Parameterized SQL and transactions| db
     api -.->|Original imports and generated exports| objects
 ```
 
 | Container | Responsibility | Current state |
 |---|---|---|
-| Web client | Accessible user interface, form validation, search, review workflow, and import/export actions | **Partly implemented.** `client/` is a Vite + React + TypeScript app with React Router. A shared layout (`components/Layout.tsx`) provides the header navigation and skip link. It has a New case form (`/new`) and a Cases list (`/cases`) with text search, course/campus/outcome filters kept in the page URL, and loading, error, and empty states. Review, import, and export screens are planned. The front-end RFC metadata is still Draft. |
-| API | Authentication, authorization, business rules, transactions, document processing, and all database/file access | **Partly implemented.** `server/` is an Express + TypeScript app with zod input validation and parameterized `pg` queries. Case, lookup, and profile routes require a verified and provisioned instructor; the health check stays public. |
-| PostgreSQL | Durable case, version, taxonomy, usage, outcome, and review data | **Implemented.** Schema and database tests run against PostgreSQL 16.15 in CI. |
+| Web client | Accessible user interface, form validation, search, review workflow, and import/export actions | **Partly implemented.** `client/` is a Vite + React + TypeScript app with React Router. A shared layout (`components/Layout.tsx`) provides the header navigation and skip link. It has a sign-in page (`/login`), a New case form split into section forms (`/new`), a Cases list (`/cases`) with text search, course/campus/outcome filters kept in the page URL, and loading, error, and empty states, and a case detail page (`/cases/:caseId`). Review, import, and export screens are planned. The front-end RFC metadata is still Draft. |
+| API | Authentication, authorization, business rules, transactions, document processing, and all database/file access | **Partly implemented.** `server/` is an Express + TypeScript app with zod input validation and parameterized `pg` queries. Every route except the health check requires a verified and provisioned instructor. |
+| PostgreSQL | Durable case, version, taxonomy, usage, outcome, and review data | **Implemented.** Schema and database tests run against PostgreSQL 16.15 in CI. Where the hosted database lives is pending (OQ-1); Supabase is the leading option. |
 | Object storage | Private original uploads and generated export artifacts; database stores metadata and object keys | **Pending.** The S3 RFC is Proposed and retention rules are unresolved. |
-| OHSU OIDC | User authentication and identity claims | **Pending integration details.** The API must still enforce authorization independently of the browser. |
+| Identity provider | User authentication and identity claims | **Implemented with Supabase Auth.** The API verifies Supabase bearer tokens and enforces authorization itself. Whether production uses Supabase Auth or OHSU SSO (OIDC) is pending (OQ-1). |
 
 The system begins as a modular monolith: one web client, one API deployment, one relational database, and—if approved—one private object store. Microservices and asynchronous queues are not justified by the current scale or requirements.
 
@@ -73,7 +76,7 @@ The system begins as a modular monolith: one web client, one API deployment, one
 
 ### 3.1 HTTP API
 
-The API contract is REST-style JSON under `/api`. Except for the health endpoint and the OIDC login/callback endpoints required by the selected flow, every route must reject an unauthenticated request with `401`. Authorization is enforced in the API, not by hiding controls in the browser.
+The API contract is REST-style JSON under `/api`. Except for the health endpoint (and any login or callback endpoints a future identity flow needs), every route must reject an unauthenticated request with `401`. Authorization is enforced in the API, not by hiding controls in the browser.
 
 The following endpoints are the baseline implementation contract. Before client and server work proceed independently, the team should record exact request/response schemas and examples in `docs/api/openapi.yaml` and review that file together.
 
@@ -86,18 +89,20 @@ The following endpoints are the baseline implementation contract. Before client 
 | `POST /api/cases/:caseId/versions` | Append a new version based on an existing case. Prior versions remain unchanged. |
 | `PUT /api/case-versions/:versionId/outcomes` | Replace the version's outcome mappings atomically; reject duplicate or unknown outcomes. |
 | `POST /api/case-versions/:versionId/submit` | Move an authorized draft into the submitted-for-review state. Invalid transitions return `409`. |
-| `POST /api/case-versions/:versionId/reviews` | Record approve or request-changes, reviewer, comment, and decision time. Role and self-review rules are pending. |
+| `POST /api/case-versions/:versionId/reviews` | Record approve or request-changes, reviewer, comment, and decision time. Who may review, and whether self-review is allowed, is pending (requirements OQ-2). |
 | `POST /api/imports/word` | Accept an allowed Word document, create a draft, and return all content that could not be placed automatically. |
 | `GET /api/case-versions/:versionId/export?format=docx\|pdf` | Produce or retrieve an authorized export containing every template section in its original order. |
 
-**Implemented so far** (`server/src/app.ts`, `server/src/routes/cases.ts`). These differ from the target contract above, and none of them require authentication yet:
+**Implemented so far** (`server/src/app.ts`, `server/src/routes/cases.ts`, `server/src/routes/lookups.ts`). These differ from the target contract above. Every route except `GET /api/health` requires a verified, provisioned instructor (§3.2): a missing or invalid token gets `401`, and an authenticated but unapproved identity gets `403`.
 
 | Route | Current behavior | Gap from the target contract |
 |---|---|---|
-| `GET /api/health` | Returns `{ "status": "ok" }`. Does not check the database. | None for liveness. A readiness check (§6) is still needed. |
+| `GET /api/health` | Public. Returns `{ "status": "ok" }`. Does not check the database. | None for liveness. A readiness check (§6) is still needed. |
+| `GET /api/auth/me` | Returns `{ id }` for the signed-in instructor. | Not in the target contract above; add it when the contract is next reviewed. |
 | `GET /api/cases` | Returns an array of `{ id, title, status, updatedAt }`, newest first. `updatedAt` is the current version's creation time. Optional parameters combine with AND: `search` matches the title or any text in the current version's content (case-insensitive); `course` and `campus` (ids) must match the same `case_use` row; `outcome` (id) must be mapped to the current version. A malformed or nonexistent id returns `400` with the offending `fields`. | No campus use in the response, no pagination. |
+| `GET /api/cases/:caseId` | See "Initial current-version detail view" below. | No history, mappings, or review summary. |
 | `GET /api/courses`, `GET /api/campuses`, `GET /api/outcomes` | Return every row of each reference table, sorted, for the Cases page's filter dropdowns. | Not in the target contract above; add them when the contract is next reviewed. |
-| `POST /api/cases` | Body `{ title, content }`. Creates the case, version 1 with status `draft`, and the current-version pointer in one transaction, then returns `201` with `{ id, versionId }`. A missing, blank, or over-300-character title returns `400`. | No creator or owner is recorded, because there is no signed-in user. |
+| `POST /api/cases` | Body `{ title, content }`. Creates the case, version 1 with status `draft`, and the current-version pointer in one transaction, recording the signed-in instructor as the case owner and the version's creator. Returns `201` with `{ id, versionId }`. A missing, blank, or over-300-character title returns `400`. | None known. |
 
 Errors currently return `{ "error": "<code>" }` (for example `invalid_request`, `not_found`, `internal_error`). A `400` from `GET /api/cases` adds a `fields` list naming the bad parameters, and a `400` from `POST /api/cases` adds zod's `issues` list. That is simpler than the error envelope below; the two should be reconciled before more routes are added.
 
@@ -113,7 +118,7 @@ JSON errors should use one predictable envelope:
 }
 ```
 
-Use `400` for malformed requests, `401` for missing/invalid authentication, `403` for insufficient permission, `404` for absent or non-visible resources, `409` for state or uniqueness conflicts, and `422` when a structurally valid import cannot satisfy domain validation. The API must not expose stack traces, SQL, storage keys, or OIDC tokens.
+Use `400` for malformed requests, `401` for missing/invalid authentication, `403` for insufficient permission, `404` for absent or non-visible resources, `409` for state or uniqueness conflicts, and `422` when a structurally valid import cannot satisfy domain validation. The API must not expose stack traces, SQL, storage keys, or access tokens.
 
 ### Initial current-version detail view (#48)
 
@@ -130,9 +135,8 @@ saved keys outside the current template as additional content. It must not write
 back, infer missing values, or remove legacy content. Back to cases preserves the
 list URL's search and filters. Blank optional fields may be omitted from display.
 
-The current application has no authentication middleware. This addition does not
-resolve FR-1 or change the permission requirements below. Restrict verification to
-local synthetic data; protect the API before enabling real-user access.
+The route sits behind the same instructor check as the other case routes. Use
+synthetic data only when verifying it.
 
 ### Role details in new drafts (#44)
 
@@ -154,11 +158,14 @@ Per-participant counts follow the partner's draft template. Detail inputs for
 every other role are the issue's proposed interpretation, not proof of partner
 approval. This change does not claim complete coverage of that draft template.
 
+These are simulation roles inside a case's content (participants, embedded
+actors, educators). They are not application user roles.
+
 ### 3.2 Authentication and authorization
 
-In development, the server verifies a Supabase Auth bearer token and looks up its stable subject in `app_user.oidc_subject`. A row explicitly provisioned with `role = 'instructor'` is required; sign-in never creates or promotes an application account. The current app has one instructor access tier. See [Instructor access](instructor-access.md) for provisioning and database protection. The production OIDC session flow remains a separate decision.
+The server verifies a Supabase Auth bearer token and looks up its stable subject in `app_user.oidc_subject`. A row explicitly provisioned with `role = 'instructor'` is required; sign-in never creates or promotes an application account. See [Instructor access](instructor-access.md) for provisioning and database protection. Whether production sign-in stays on Supabase Auth or moves to OHSU single sign-on (OIDC) is pending (requirements OQ-1).
 
-At minimum, the authorization design must distinguish creating/editing, reviewing, approving, and administration. A user-visible name or email is not a stable identity key. Logs must not contain access tokens, session cookies, full imported documents, or sensitive case content.
+Every approved instructor has the same application access. An Owner/Admin hierarchy and student accounts are non-goals. Who may review and approve a case, and whether an author may review their own case, is pending (requirements OQ-2). Keep reviewing and approving as separate checks in the API so those rules can be added without restructuring. A user-visible name or email is not a stable identity key. Logs must not contain access tokens, session cookies, full imported documents, or sensitive case content.
 
 ### 3.3 Database and file boundaries
 
@@ -170,16 +177,16 @@ Word import must normalize recognized sections into the version's `content` docu
 
 ## 4. Data Design
 
-The implemented schema contains `campus`, `app_user`, `course`, `outcome`, `sim_case`, `case_version`, `tag`, `case_version_tag`, `case_use`, `case_version_outcome`, and `review`. Case content is currently stored as JSONB so the template can evolve while stable relational fields remain searchable.
+The implemented schema contains `campus`, `app_user`, `course`, `outcome`, `sim_case`, `case_version`, `tag`, `case_version_tag`, `case_use`, `case_version_outcome`, and `review`. Case content is currently stored as JSONB so the template can evolve while stable relational fields remain searchable. [`erd.md`](erd.md) has the entity-relationship diagram.
 
-`sim_case` owns the stable case identity and points to a current `case_version`; every version belongs to one case and creator. A case may reference a parent case when it is adapted. Join tables associate versions with tags and outcomes, while `case_use` associates a case with a campus and course. Reviews belong to a version and reviewer. `app_user.oidc_subject` is the stable external identity key.
+`sim_case` owns the stable case identity and points to a current `case_version`; every version belongs to one case and creator. A case may reference a parent case when it is adapted. Join tables associate versions with tags and outcomes, while `case_use` associates a case with a campus and course. Reviews belong to a version and reviewer. `app_user.oidc_subject` is the stable external identity key; today it holds the Supabase Auth user ID.
 
 The following invariants apply to application code and should be strengthened in the schema where practical:
 
 - A case requires a nonblank title and a stable owner.
 - Each case version number is unique within its case; edits append a version and never mutate an earlier approved version.
 - `sim_case.current_version_id` must refer to a version of that same case. The current foreign key checks only that the version exists, so this cross-row invariant still needs enforcement.
-- Status, role, and review-decision values require agreed controlled vocabularies. They are currently free text.
+- Status, role, and review-decision values require agreed controlled vocabularies. They are currently free text; the API grants access only to the exact role `instructor`.
 - Workflow transitions must be explicit and tested; the database does not currently enforce them.
 - Version content should be required once the canonical JSON shape is agreed. It is currently nullable.
 - The project must choose and document a timezone convention. Existing columns use `TIMESTAMP` without timezone.
@@ -197,12 +204,18 @@ Conflicting version numbers or invalid workflow transitions return `409`. Search
 
 | Environment | Design |
 |---|---|
-| Local development | PostgreSQL 16.15 in Docker or a local PostgreSQL instance. `bash db/test.sh` creates a temporary database, loads the schema, runs SQL tests, and drops it. For the app, the API (`npm run dev --workspace server`, port 3000) reads `DATABASE_URL` from `server/.env`, and the Vite client (`npm run dev --workspace client`) forwards `/api` to it. The server's database tests run when `TEST_DATABASE_URL` names a throwaway database ending in `_test`. README.md ("Run the app") has the steps. |
+| Local development | PostgreSQL 16.15 in Docker or a local PostgreSQL instance. `bash db/test.sh` creates a temporary database, loads the schema, runs SQL tests, and drops it. For the app, the API (`npm run dev --workspace server`, port 3000) reads `DATABASE_URL` and the Supabase Auth settings from `server/.env`, and the Vite client (`npm run dev --workspace client`) reads its Supabase settings from `client/.env` and forwards `/api` to the API. A local Supabase stack can be used for a local-only demo (see [Instructor access](instructor-access.md)). The server's database tests run when `TEST_DATABASE_URL` names a throwaway database ending in `_test`. README.md ("Run the app") has the steps. |
 | CI | GitHub Actions scans for secrets and blocked sensitive files, starts PostgreSQL 16.15, and runs database tests. The app job runs `npm ci`, lint, typecheck, test, and build across the `client` and `server` workspaces on Node 22. It does not set `TEST_DATABASE_URL`, so the server's database tests are skipped in CI. |
-| Staging | **Not yet implemented.** Must use synthetic data, the approved identity-provider test configuration, and production-like database/storage controls. |
-| Production | **Pending OHSU IT approval.** No production topology should be treated as final yet. |
+| Vercel deployment | **Exists; purpose to be confirmed.** `vercel.json` deploys `client/` (Vite) and `server/` (Express) as two Vercel services and routes `/api/*` to the API. A deployment is live at ohsu-simulation-database.vercel.app. Whether it is a shared demo, a staging environment, or the start of production has not been recorded. Use synthetic data only. |
+| Staging | **Not formally defined.** Must use synthetic data, a separate identity project, and production-like database/storage controls. |
+| Production | **Pending (requirements OQ-1).** The leading option is Vercel + Supabase, but no production topology should be treated as final yet. |
 
-The current hosting RFC recommends, conditionally, an AWS container deployment with managed PostgreSQL and private S3 storage. That topology is a candidate, not an accepted fact. If approved, the web/API service should run in private-by-default networking, PostgreSQL must not be publicly reachable, encryption is required in transit and at rest, secrets belong in the approved secret manager, and storage must block public access.
+Two hosting options are on record, and neither is accepted:
+
+- **Vercel + Supabase (leading option, no RFC).** Vercel hosts the client and Express API; Supabase hosts PostgreSQL, Auth, and file storage. This matches the existing `vercel.json` and the Supabase Auth integration.
+- **AWS (Draft RFC, `docs/rfcs/RFC-Draft-Kenneth_Robertson.md`).** Recommends, conditionally, an AWS container deployment with managed PostgreSQL and private S3 storage, pending OHSU approval.
+
+Whichever host is chosen: the browser must not reach the database directly, and only the API connects to it (on Supabase, with the Data API disabled; see [Instructor access](instructor-access.md)). Encryption is required in transit and at rest, secrets belong in the platform's environment-variable or secret store and never in the repository, and storage must block public access.
 
 Each release should use an immutable application artifact, apply backward-compatible migrations, run a smoke test, and support rollback to the prior application artifact. Database rollback cannot rely only on down-migrations: before a destructive migration, the team must take and test an approved backup/restore path. Health checks should distinguish process liveness from readiness without returning confidential details.
 
@@ -223,17 +236,17 @@ Each spike is time-boxed and ends with evidence and a recorded decision, not pro
 
 | Risk | Time box and proof | Result to record |
 |---|---|---|
-| OHSU OIDC integration | 2–3 days after test credentials exist. Demonstrate login, logout, callback validation, stable-subject mapping, expired/invalid-token rejection, and `401` on protected routes. | Authentication flow, claim mapping, session/token choice, and local/CI test strategy. |
+| OHSU SSO (OIDC) integration | Only if OHSU requires SSO for production (OQ-1). 2–3 days after test credentials exist. Demonstrate login, logout, callback validation, stable-subject mapping, expired/invalid-token rejection, and `401` on protected routes. | Authentication flow, claim mapping, session/token choice, and local/CI test strategy. |
 | Word import fidelity | 2–3 days using approved synthetic copies of both sample templates. Produce normalized JSON and a complete unplaced-content report; no content may disappear silently. | Import library choice, supported document rules, failure handling, and measured limitations. |
 | Word/PDF export fidelity | 1–2 days. Export every canonical section in order and compare output against an agreed checklist. | Rendering approach, supported formats, accessibility limits, and acceptance fixture. |
-| Approved AWS topology | 2–3 days only after OHSU approval. Deploy a synthetic build, prove private database/storage access, exercise secrets, collect cost estimates, and roll back one release. | Accepted deployment diagram, ownership, recovery evidence, and an ADR/RFC status change. |
+| Hosting topology | 2–3 days once a host is chosen (Vercel + Supabase is the leading option). Deploy a synthetic build, prove the database is reachable only through the API, exercise secrets, collect cost estimates, restore a backup into a separate database, and roll back one release. | Accepted deployment diagram, ownership, recovery evidence, and a decision record. |
 
 ## 9. Open Questions
 
 These questions block parts of implementation and should have named owners and decision dates:
 
-1. Which hosting account, cloud services, region, network, and OIDC provider/configuration will OHSU approve?
-2. What are the exact roles and permissions for authors, owners, reviewers, approvers, and administrators? Can a user review their own case?
+1. Will the team and OHSU accept Vercel + Supabase as the host, or is another environment required? Does production sign-in need OHSU single sign-on (OIDC)? Owner: Kenneth (requirements OQ-1).
+2. Who may review and approve a case, and can an author review their own case? An Owner/Admin hierarchy and student accounts are non-goals (requirements OQ-2).
 3. What are the canonical workflow states, allowed transitions, and visibility rules for drafts, submitted, approved, superseded, archived, and due-for-review cases?
 4. Is private S3-compatible object storage accepted? What are the upload limits, retention schedule, restore window, and deletion rules?
 5. What is the canonical JSON schema for case content, and which fields must also be relational and searchable?
@@ -248,16 +261,19 @@ The team is intentionally deferring microservices, message queues, real-time col
 
 ## 11. Validation and Maintenance
 
-Before implementation begins, the team and partner should review the context/container diagrams, walk through create → version → submit → review → search → export, and identify the behavior when OIDC, PostgreSQL, object storage, or document conversion is unavailable. A design review is complete only when unresolved issues are captured above with owners and dates.
+Before implementation begins, the team and partner should review the context/container diagrams, walk through create → version → submit → review → search → export, and identify the behavior when the identity provider, PostgreSQL, object storage, or document conversion is unavailable. A design review is complete only when unresolved issues are captured above with owners and dates.
 
-This is a living document. Any pull request that changes a container boundary, API contract, data relationship, deployment topology, security boundary, or major failure behavior must update this file in the same change. Durable, hard-to-reverse decisions should also update or add a decision record. Decision records live in `docs/rfcs/` (see AGENTS.md, Sources of truth); there is no separate `docs/adr/` folder.
+This is a living document. Any pull request that changes a container boundary, API contract, data relationship, deployment topology, security boundary, or major failure behavior must update this file in the same change. Durable, hard-to-reverse decisions should also update or add a decision record. Longer proposals that compare options go in `docs/rfcs/`; short records of a decision the team has made go in `docs/adr/` (see AGENTS.md, Sources of truth).
 
 ## Repository Evidence Used
 
 - [`README.md`](../README.md) — project purpose, current status, stack, and local app/CI workflow.
 - [`server/src/`](../server/src/) and [`client/src/`](../client/src/) — implemented API routes and client pages.
+- [`vercel.json`](../vercel.json) — Vercel services for the client and API.
 - [`docs/requirements.md`](requirements.md) — functional requirements, constraints, performance targets, success metrics, non-goals, and open questions.
-- [`db/schema.sql`](../db/schema.sql) and [`db/tests/`](../db/tests/) — implemented data model and verified database behavior.
+- [`docs/instructor-access.md`](instructor-access.md) — instructor provisioning and hosted Supabase checks.
+- [`db/schema.sql`](../db/schema.sql), [`db/migrations/`](../db/migrations/), and [`db/tests/`](../db/tests/) — implemented data model, migrations, and verified database behavior.
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) and [`CONTRIBUTING.md`](../CONTRIBUTING.md) — existing quality gates and review process.
 - [`docs/rfcs/`](rfcs/) — PostgreSQL decision and draft/proposed front-end, storage, and hosting recommendations.
+- [`docs/adr/`](adr/) — short decision records, including team-provisioned instructor access.
 - [`AGENTS.md`](../AGENTS.md) — domain, privacy, security, accessibility, data-integrity, and testing guardrails.

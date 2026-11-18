@@ -16,13 +16,13 @@ Start with the [README](README.md) to set up and run the checks locally. Read [A
 - One issue, one purpose per PR
 - Required: all CI checks passing + one approval from someone other than the author
 - New commits after approval dismiss the approval
-- If the PR changes `db/schema.sql`, add or update a test in `db/tests/` that would fail if the change were reverted.
+- If the PR changes `db/schema.sql`, add or update a test in `db/tests/` that would fail if the change were reverted. If existing databases need the change, add a migration in `db/migrations/`.
 
 ## Definition of Done:
 A change can merge only when:
 - All CI checks pass
 - One teammate other than the author has approved the pull request
-- Docs updated: if the change affects behavior, setup, requirements or a recorded decision, the matching file (`README.md`, `docs/requirements.md`, `docs/rfcs/`, `AGENTS.md`) is updated in the same PR
+- Docs updated: if the change affects behavior, setup, requirements, design or a recorded decision, the matching file (`README.md`, `docs/requirements.md`, `docs/design.md`, `docs/rfcs/`, `docs/adr/`, `AGENTS.md`) is updated in the same PR
 
 ## The Contribution Norm:
 - Work lives in:
