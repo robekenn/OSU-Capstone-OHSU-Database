@@ -4,7 +4,7 @@
 Faculty at the OHSU School of Nursing run simulation cases across multiple campuses. Each case is a long document. There is no central place to store them, so faculty cannot easily find a case by course, campus, or learning outcome, tell which copy is current, or reuse a case at another campus.
 
 ## Functional Requirements
-FR-1: Only team-provisioned OHSU instructor accounts can sign in. There is no self-service signup or Owner/Admin hierarchy. Acceptance: a missing or invalid token gets 401 on protected API routes; an authenticated but unapproved identity gets 403. The health check remains public and contains no application data.
+FR-1: Only team-provisioned OHSU instructor accounts can sign in. There is no self-service signup or Owner/Admin hierarchy; every approved instructor has the same application access. Acceptance: a missing or invalid token gets 401 on protected API routes; an authenticated but unapproved identity gets 403. The health check remains public and contains no application data.
 
 FR-2: An author creates a case with a title and template content, saved as a draft. Acceptance: A missing title returns 400 and writes nothing; success writes one case row and one version row in a single transaction.
 
@@ -16,7 +16,7 @@ FR-5: An author maps a case version to learning outcomes. Acceptance: Mapping a 
 
 FR-6: A user filters cases by course, campus, and outcome. Acceptance: each filter alone returns only matching cases.
 
-FR-7: An author submits a draft, and a reviewer approves it or requests changes with a comment. Acceptance: only drafts can be submitted; a review records reviewers, decision, comment, and time.
+FR-7: An author submits a draft, and a reviewer approves it or requests changes with a comment. Acceptance: only drafts can be submitted; a review records reviewers, decision, comment, and time. Which instructors may review a case, including whether authors may review their own, is open (OQ-2).
 
 FR-8: An author imports a Word document into a new draft. Acceptance: both OHSU sample templates import, and anything that cannot be placed is listed, not dropped.
 
@@ -32,7 +32,7 @@ NFR-3: Saving a case takes under 10 seconds. It will be measured on the template
 ## Constraints
 C-1: PostgreSQL, Node.js + Express (TypeScript), React + TypeScript.
 
-C-2: Supabase Auth provides development sign-in; OHSU OIDC remains the documented production target pending partner confirmation of the identity setup.
+C-2: Supabase Auth provides sign-in today, with team-provisioned instructor accounts. Whether production sign-in stays on Supabase Auth or moves to OHSU single sign-on (OIDC) is open (OQ-1).
 
 C-3: No real patient data.
 
@@ -46,11 +46,13 @@ C-3: No real patient data.
 - Mobile App.
 - AI-generated cases or AI-assisted entry.
 - Migrating every case in history.
+- Student or learner accounts, and any student-facing use of the app. Users are OHSU instructors only.
+- An Owner/Admin role hierarchy or in-app account management. Instructors are provisioned outside the app (see [Instructor access](instructor-access.md)).
 
 ## Open Questions
-OQ-1: Does OHSU IT approve AWS hosting, and which OIDC identity provider do we use? Owner: Calvin, asks IT. 
+OQ-1: Where will the app be hosted, and how will production sign-in work? The leading option is Vercel for the web client and Express API, with Supabase for the PostgreSQL database, Auth, and file storage. It is not final, and there is no accepted RFC for it. Still open: whether OHSU IT accepts this setup, and whether production sign-in must use OHSU single sign-on (OIDC). Owner: Kenneth.
 
-OQ-2: What are the exact roles and permissions? Owner: not assigned.
+OQ-2: Which instructors may review and approve a case, and can an author review their own case? Owner: not assigned.
 
 OQ-3: How many cases, faculty, and campuses should it handle? Owner: Calvin, before NFR-1 is measured.
 

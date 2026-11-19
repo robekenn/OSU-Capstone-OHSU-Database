@@ -6,13 +6,14 @@ A shared database where OHSU School of Nursing faculty can create, find, review,
 
 Early development. The repository currently contains:
 
-- The PostgreSQL schema for cases, versions, outcome mapping, tags, campus use and reviews (`db/schema.sql`)
+- The PostgreSQL schema for cases, versions, outcome mapping, tags, campus use and reviews (`db/schema.sql`), plus migrations for existing databases (`db/migrations/`)
 - Automated tests for that schema (`db/tests/`), run in CI on every pull request
-- A React + TypeScript web client (`client/`) with a New case form (`/new`) and a Cases list (`/cases`) that has text search and course, campus and outcome filters
-- A Node.js + Express + TypeScript API (`server/`) with `GET /api/health`, `GET /api/cases` (search and filters), `POST /api/cases`, and the `GET /api/courses`, `/api/campuses` and `/api/outcomes` lists behind the filter dropdowns
+- A React + TypeScript web client (`client/`) with an instructor sign-in page (`/login`), a New case form split into sections (`/new`), a Cases list (`/cases`) with text search and course, campus and outcome filters, and a case details page (`/cases/:caseId`)
+- A Node.js + Express + TypeScript API (`server/`) with `GET /api/health`, `GET /api/auth/me`, `GET /api/cases` (search and filters), `GET /api/cases/:caseId`, `POST /api/cases`, and the `GET /api/courses`, `/api/campuses` and `/api/outcomes` lists behind the filter dropdowns. Every route except the health check requires a signed-in, provisioned instructor
+- A Vercel configuration (`vercel.json`) that deploys the client and the API
 - Requirements and recorded design decisions (`docs/`)
 
-The stack is PostgreSQL, Node.js + Express (TypeScript) and React + TypeScript. The development build uses Supabase Auth with team-provisioned instructor access. There is no public signup or in-app account management. OHSU's production identity and hosting requirements are pending partner confirmation.
+The stack is PostgreSQL, Node.js + Express (TypeScript) and React + TypeScript. Sign-in uses Supabase Auth with team-provisioned instructor accounts. There is no public signup, in-app account management or role hierarchy, and the app is for instructors only. Hosting and production sign-in are not final: the leading option is Vercel + Supabase, and whether OHSU single sign-on is required is still open (see [requirements](docs/requirements.md), OQ-1).
 
 ## Quickstart
 
@@ -146,7 +147,7 @@ npm test
 npm run build
 ```
 
-The server's filter tests (`server/tests/`) need a throwaway PostgreSQL database and are skipped unless `TEST_DATABASE_URL` points at one. The suite wipes and reloads that database, so its name must end in `_test`. Use a different name from `ohsu_sim_test`, which `db/test.sh` creates and drops on every run:
+The server's database tests (`server/tests/`) need a throwaway PostgreSQL database and are skipped unless `TEST_DATABASE_URL` points at one. The suite wipes and reloads that database, so its name must end in `_test`. Use a different name from `ohsu_sim_test`, which `db/test.sh` creates and drops on every run:
 
 ```bash
 createdb ohsu_sim_server_test   # or: docker exec ohsu-pg-app createdb -U postgres ohsu_sim_server_test
@@ -162,15 +163,22 @@ Never point `TEST_DATABASE_URL` at a database whose data you want to keep. CI do
 | `client/` | React + TypeScript web client (Vite, React Router) |
 | `server/` | Node.js + Express + TypeScript API; `server/.env.example` lists the settings it needs |
 | `package.json` | npm workspaces root; runs `lint`, `typecheck`, `test` and `build` across `client/` and `server/` |
+| `vercel.json` | Vercel deployment of the client and API |
 | `db/schema.sql` | PostgreSQL schema |
+| `db/migrations/` | SQL migrations to bring an existing database up to date with `db/schema.sql` |
 | `db/test.sh` | Loads the schema into an empty database and runs the tests |
 | `db/tests/` | SQL tests, one file per area, mapped to requirement IDs |
 | `docs/requirements.md` | What the product must do, with acceptance criteria, non-goals and open questions |
 | `docs/design.md` | System design: architecture, API contract, data design and open questions |
+| `docs/erd.md` | Entity-relationship diagram of the current schema |
 | `docs/risks.md` | Project risk register, reviewed at sprint planning |
-| `docs/rfcs/` | Recorded design decisions, each with the options considered and why |
+| `docs/instructor-access.md` | How to provision and revoke instructor accounts, and run the local-only demo |
+| `docs/rfcs/` | Proposals for significant decisions, each with the options considered and why |
+| `docs/adr/` | Short records of decisions the team has made |
 | `docs/schema/` | Plain-language explanation of each table and column in the schema |
+| `docs/case-details.md` | Notes on the case details page |
 | `docs/issue-37-demo.md` | Walkthrough of the New case → Cases list demo |
+| `docs/screenshots/` | Screenshots used in the docs (synthetic data only) |
 | `.github/workflows/ci.yml` | CI: secret scan, schema tests, and app lint/typecheck/test/build |
 | `AGENTS.md` | Guide for AI coding tools and contributors, including data-safety rules |
 | `CONTRIBUTING.md` | Branching, pull requests, Definition of Done |

@@ -6,5 +6,6 @@
 
 Notes on reading it:
 
-- The `role` column on `app_user` lists the planned roles, but it is free text for now and is not an authorization rule. The design calls for the API to enforce permissions on the server, not just to decide which screens and buttons appear (see [AGENTS.md](../../AGENTS.md#security-and-authorization) and [design.md](../design.md) §3.2).
+- The `role` column on `app_user` is free text. The API grants access only to the exact value `instructor`, and every approved instructor has the same access; there is no Owner/Admin hierarchy (see [Instructor access](../instructor-access.md)). Permissions are enforced by the API on the server, not by which screens and buttons appear (see [AGENTS.md](../../AGENTS.md#security-and-authorization) and [design.md](../design.md) §3.2).
+- [`erd.md`](../erd.md) has a diagram of how the tables relate.
 - The tests in [`db/tests/`](../../db/tests/) show the schema's actual behavior, such as which inserts are rejected.
