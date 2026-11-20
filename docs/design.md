@@ -140,6 +140,19 @@ list URL's search and filters. Blank optional fields may be omitted from display
 The route sits behind the same instructor check as the other case routes. Use
 synthetic data only when verifying it.
 
+### Edit and archive a case (#56, #57)
+
+`POST /api/cases/:caseId/versions` saves `{ expectedVersionId, title, changes }`
+as a new draft. It preserves the previous version and copies its attachment,
+tag, and outcome links. Omitted fields stay as saved. A null field clears it.
+Stale edits or attachment changes return `409`.
+
+`PATCH /api/cases/:caseId/archive` toggles the case's archived state with
+`{ archived: boolean }`. Approved instructors can archive active drafts and
+restore archived cases. Use `GET /api/cases?archived=1` to find archived cases.
+They remain readable with their files. Apply `db/migrations/004_case_archive.sql`
+before deploying against an existing database.
+
 ### Role details in new drafts (#44)
 
 The `roles.participants`, `roles.patientEmbedded`, and `roles.educatorsStaff`

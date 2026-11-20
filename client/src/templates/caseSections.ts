@@ -33,5 +33,6 @@ export type FormSection = {
     if (title.trim() === '') {
       return 'General information: Title is required.'
     }
+    if (title.trim().length > 300) return 'General information: Title must be 300 characters or fewer.'
     return ''
   }

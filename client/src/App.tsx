@@ -5,6 +5,7 @@ import { supabase } from './auth/supabase'
 import Layout from './components/Layout'
 import CasesPage from './pages/CasesPage'
 import CaseDetailPage from './pages/CaseDetailPage'
+import EditCasePage from './pages/EditCasePage'
 import NewCasePage from './pages/NewCasePage'
 import NotFoundPage from './pages/NotFoundPage'
 import SignInPage from './pages/SignInPage'
@@ -85,6 +86,7 @@ export default function App() {
           <Route index element={<Navigate to="/cases" replace />} />
           <Route path="cases" element={<CasesPage />} />
           <Route path="cases/:caseId" element={<CaseDetailPage />} />
+          <Route path="cases/:caseId/edit" element={<EditCasePage />} />
           <Route path="new" element={<NewCasePage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

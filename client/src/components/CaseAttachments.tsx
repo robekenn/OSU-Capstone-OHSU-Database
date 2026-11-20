@@ -66,7 +66,7 @@ type LoadState =
   | { kind: 'ready'; list: AttachmentList }
 
 // "Attachments" section on the case detail page (#63).
-export function CaseAttachments({ caseId }: { caseId: string }) {
+export function CaseAttachments({ caseId, versionId }: { caseId: string; versionId: number }) {
   const [state, setState] = React.useState<LoadState>({ kind: 'loading' })
   const [reload, setReload] = React.useState(0)
   const [busy, setBusy] = React.useState(false)
@@ -76,14 +76,14 @@ export function CaseAttachments({ caseId }: { caseId: string }) {
   React.useEffect(() => {
     const controller = new AbortController()
     setState({ kind: 'loading' })
-    listAttachments(caseId, controller.signal).then(
+    listAttachments(caseId, controller.signal, versionId).then(
       (list) => { if (!controller.signal.aborted) setState({ kind: 'ready', list }) },
       (failure: unknown) => {
         if (!controller.signal.aborted) setState({ kind: 'error', message: message(failure, 'Could not load attachments.') })
       },
     )
     return () => controller.abort()
-  }, [caseId, reload])
+  }, [caseId, versionId, reload])
 
   async function run(work: () => Promise<void>) {
     setBusy(true)
@@ -100,7 +100,7 @@ export function CaseAttachments({ caseId }: { caseId: string }) {
 
   const upload = (file: File) => run(async () => {
     setStatus('Uploading ' + file.name + '…')
-    const saved = await uploadAttachment(caseId, file)
+    const saved = await uploadAttachment(caseId, file, versionId)
     setState((current) => current.kind === 'ready'
       ? { kind: 'ready', list: { ...current.list, files: [...current.list.files, saved] } }
       : current)
@@ -114,7 +114,7 @@ export function CaseAttachments({ caseId }: { caseId: string }) {
   const remove = (file: Attachment) => {
     if (!window.confirm('Remove "' + file.filename + '" from this version? Earlier versions keep their copy.')) return
     void run(async () => {
-      await removeAttachment(caseId, file.id)
+      await removeAttachment(caseId, file.id, versionId)
       setState((current) => current.kind === 'ready'
         ? { kind: 'ready', list: { ...current.list, files: current.list.files.filter((item) => item.id !== file.id) } }
         : current)
@@ -132,7 +132,7 @@ export function CaseAttachments({ caseId }: { caseId: string }) {
     {state.kind === 'ready' && <>
       {state.list.editable
         ? <AttachmentUpload busy={busy} onChoose={(file) => { void upload(file) }} />
-        : <p>Files can only be added or removed on a draft version.</p>}
+        : <p>Files can only be added or removed on an active draft.</p>}
       <p role="status">{status}</p>
       {error && <p className="error" role="alert">{error}</p>}
       <AttachmentTable files={state.list.files} editable={state.list.editable} busy={busy}

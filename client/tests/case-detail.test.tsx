@@ -10,7 +10,7 @@ const originalFetch = globalThis.fetch
 afterEach(() => { globalThis.fetch = originalFetch })
 
 test('reads the current case and handles missing, forbidden, and malformed responses', async () => {
-  const detail = { id: 7, title: 'Synthetic case', currentVersion: {
+  const detail = { id: 7, title: 'Synthetic case', archived: false, currentVersion: {
     id: 9, versionNumber: 1, status: 'draft', createdAt: '2026-11-06T12:00:00Z',
     content: { patientChart: { allergies: 'Synthetic allergy' } },
   } }
@@ -29,7 +29,7 @@ test('reads the current case and handles missing, forbidden, and malformed respo
 })
 
 test('allows an existing case with no current version', async () => {
-  const detail = { id: 7, title: 'Synthetic unversioned case', currentVersion: null }
+  const detail = { id: 7, title: 'Synthetic unversioned case', archived: false, currentVersion: null }
   globalThis.fetch = async () => Response.json(detail)
   assert.deepEqual(await getCase('7'), detail)
 })

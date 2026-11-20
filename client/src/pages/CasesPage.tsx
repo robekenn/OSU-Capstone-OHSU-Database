@@ -1,5 +1,5 @@
 import React from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { InvalidFilterError, filtersToQuery, listCampuses, listCases, listCourses, listOutcomes } from '../api/cases'
 import type { Campus, CaseFilters, CaseSummary, Course, Outcome } from '../api/cases'
 import { courseLabel, describeResults, filtersFromParams, outcomeLabel } from './caseFilters'
@@ -146,6 +146,7 @@ export default function CasesPage() {
   // The URL is the source of truth for the applied filters, so a search can be
   // bookmarked and Back/Forward step through earlier searches.
   const [searchParams, setSearchParams] = useSearchParams()
+  const archived = searchParams.get('archived') === '1'
   const applied = filtersFromParams(searchParams)
   const appliedQuery = filtersToQuery(applied)
   const filtered = appliedQuery !== ''
@@ -160,14 +161,14 @@ export default function CasesPage() {
   }
 
   const [reload, setReload] = React.useState(0)
-  const requestKey = appliedQuery + '#' + reload
+  const requestKey = appliedQuery + '#' + archived + '#' + reload
   const [state, setState] = React.useState<ListState>({ kind: 'loading' })
   // A result for an older request counts as still loading.
   const view: ListState = state.kind !== 'loading' && state.key === requestKey ? state : { kind: 'loading' }
 
   React.useEffect(() => {
     const controller = new AbortController()
-    listCases(filtersFromParams(new URLSearchParams(appliedQuery)), controller.signal).then(
+    listCases(filtersFromParams(new URLSearchParams(appliedQuery)), controller.signal, archived).then(
       (cases) => { if (!controller.signal.aborted) setState({ kind: 'ready', key: requestKey, cases }) },
       (error: unknown) => {
         if (!controller.signal.aborted) {
@@ -181,7 +182,7 @@ export default function CasesPage() {
       },
     )
     return () => controller.abort()
-  }, [appliedQuery, requestKey])
+  }, [appliedQuery, archived, requestKey])
 
   const [lookups, setLookups] = React.useState<Lookups>({ kind: 'loading' })
   React.useEffect(() => {
@@ -201,17 +202,26 @@ export default function CasesPage() {
       // Same search again: refetch instead of adding a duplicate history entry.
       setReload((value) => value + 1)
     } else {
-      setSearchParams(new URLSearchParams(query))
+      const params = new URLSearchParams(query)
+      if (archived) params.set('archived', '1')
+      setSearchParams(params)
     }
   }
 
   let statusText = ''
   if (view.kind === 'loading') statusText = 'Loading cases...'
-  if (view.kind === 'ready') statusText = describeResults(view.cases.length, filtered)
+  if (view.kind === 'ready') statusText = archived && !filtered && view.cases.length === 0
+    ? 'No archived cases.' : describeResults(view.cases.length, filtered)
+
+  const otherView = new URLSearchParams(appliedQuery)
+  if (!archived) otherView.set('archived', '1')
 
   return (
     <section className="cases-page">
-      <h1>Cases</h1>
+      <h1>{archived ? 'Archived cases' : 'Cases'}</h1>
+      <Link to={'/cases' + (otherView.size ? '?' + otherView : '')}>
+        {archived ? 'View active cases' : 'View archived cases'}
+      </Link>
 
       <FilterForm
         draft={draft}
@@ -220,7 +230,7 @@ export default function CasesPage() {
         onSubmit={() => apply(draft)}
         onClear={() => {
           setDraft({})
-          if (filtered) setSearchParams(new URLSearchParams())
+          if (filtered) setSearchParams(archived ? { archived: '1' } : {})
         }}
       />
 

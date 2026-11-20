@@ -1,0 +1,5 @@
+BEGIN;
+
+ALTER TABLE public.sim_case ADD COLUMN archived_at TIMESTAMPTZ;
+
+COMMIT;

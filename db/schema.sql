@@ -33,7 +33,8 @@ CREATE TABLE sim_case (
   owner_id INT REFERENCES app_user(id),
   parent_case_id INT REFERENCES sim_case(id),
   current_version_id INT,
-  next_review_due DATE
+  next_review_due DATE,
+  archived_at TIMESTAMPTZ
 );
 
 CREATE TABLE case_version (

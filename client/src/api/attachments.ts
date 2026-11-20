@@ -23,6 +23,7 @@ const MESSAGES: Record<string, string> = {
   checksum_mismatch: 'The file was changed or damaged during upload. Please try again.',
   upload_not_found: 'The upload didn\'t finish. Please try again.',
   version_not_editable: 'Files can only be added or removed on a draft version.',
+  stale_version: 'This case has a newer version. Reload the page before changing its attachments.',
   storage_unavailable: 'File storage isn\'t set up on this server yet, so attachments are unavailable.',
   already_attached: 'That file was already attached.',
   not_found: 'That case or file no longer exists.',
@@ -55,9 +56,10 @@ function isStorageUrl(value: unknown): value is string {
 }
 
 const base = (caseId: string) => '/api/cases/' + encodeURIComponent(caseId) + '/attachments'
+const versionQuery = (versionId?: number) => versionId === undefined ? '' : '?versionId=' + versionId
 
-export async function listAttachments(caseId: string, signal?: AbortSignal): Promise<AttachmentList> {
-  const response = await appFetch(base(caseId), { signal })
+export async function listAttachments(caseId: string, signal?: AbortSignal, versionId?: number): Promise<AttachmentList> {
+  const response = await appFetch(base(caseId) + versionQuery(versionId), { signal })
   if (!response.ok) throw await failure(response, 'Could not load attachments')
   const data: unknown = await response.json()
   if (data && typeof data === 'object') {
@@ -76,14 +78,14 @@ export async function sha256Hex(data: ArrayBuffer): Promise<string> {
 // Uploads go straight to private storage through a one-time signed link, then the
 // API checks what arrived (type, size, checksum) before listing it. If any step
 // fails, the API deletes what was stored, so nothing half-uploaded is kept.
-export async function uploadAttachment(caseId: string, file: File): Promise<Attachment> {
+export async function uploadAttachment(caseId: string, file: File, versionId?: number): Promise<Attachment> {
   const problem = checkFile(file)
   if (problem) throw new Error(problem)
 
   const bytes = await file.arrayBuffer()
   const sha256 = await sha256Hex(bytes)
 
-  const signed = await appFetch(base(caseId) + '/uploads', {
+  const signed = await appFetch(base(caseId) + '/uploads' + versionQuery(versionId), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filename: file.name, sizeBytes: file.size }),
@@ -111,7 +113,7 @@ export async function uploadAttachment(caseId: string, file: File): Promise<Atta
     throw new Error(stored.status === 413 ? MESSAGES.file_too_large : 'File storage refused the upload (status ' + stored.status + ').')
   }
 
-  const saved = await appFetch(base(caseId), {
+  const saved = await appFetch(base(caseId) + versionQuery(versionId), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ uploadKey, filename: file.name, sha256 }),
@@ -133,7 +135,7 @@ export async function getDownloadUrl(caseId: string, fileId: number): Promise<st
   return data.url
 }
 
-export async function removeAttachment(caseId: string, fileId: number): Promise<void> {
-  const response = await appFetch(base(caseId) + '/' + fileId, { method: 'DELETE' })
+export async function removeAttachment(caseId: string, fileId: number, versionId?: number): Promise<void> {
+  const response = await appFetch(base(caseId) + '/' + fileId + versionQuery(versionId), { method: 'DELETE' })
   if (!response.ok) throw await failure(response, 'Could not remove the file')
 }

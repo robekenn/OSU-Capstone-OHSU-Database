@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import SectionForm from '../src/components/SectionForm'
 import { formSections, titleProblem } from '../src/templates/caseSections'
 import { caseTemplate } from '../src/templates/caseTemplate'
+import { editableDraft, draftChanges } from '../src/templates/editContent'
 
 test('there are ten form sections in the order the issue lists', () => {
   assert.deepEqual(formSections.map((section) => section.title), [
@@ -53,4 +54,22 @@ test('a section that covers several template sections names each one', () => {
     <SectionForm formSection={simOps} content={{}} onChange={() => {}} />,
   )
   assert.ok(html.includes('Simulation Operations: Patient Details'))
+})
+
+test('a saved draft loads both role formats and preserves fields the form cannot represent', () => {
+  const draft = editableDraft({
+    roles: { participants: ['Observers'], educatorsStaff: [{ role: 'Lead Facilitator', detail: 'Synthetic detail' }] },
+    orders: { medications: [{ name: 'Synthetic example', retiredColumn: 'Keep this' }] },
+    retiredSection: { oldValue: true },
+  })
+  const roles = formSections.find((section) => section.key === 'roles')!
+  const html = renderToStaticMarkup(<SectionForm formSection={roles} content={draft.content} onChange={() => {}} />)
+  assert.match(html, /checked=""\/>.*Observers/)
+  assert.match(html, /value="Synthetic detail"/)
+  assert.ok(draft.readOnlyFields.has('orders.medications'))
+  assert.equal(draft.content.retiredSection, undefined)
+  assert.deepEqual(draftChanges({ roles: { participants: [{ role: 'Observers', detail: '8' }] },
+    generalInformation: { campus: '' } }), {
+    roles: { participants: [{ role: 'Observers', detail: '8' }] }, generalInformation: { campus: null },
+  })
 })
