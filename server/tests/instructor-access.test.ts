@@ -23,10 +23,14 @@ afterEach(() => {
 
 test('health stays public; every case, filter, and profile endpoint requires a session', async () => {
   expect((await request(app).get('/api/health')).status).toBe(200)
-  for (const path of ['/api/cases', '/api/cases/1', '/api/courses', '/api/campuses', '/api/outcomes', '/api/auth/me']) {
+  for (const path of ['/api/cases', '/api/cases/1', '/api/courses', '/api/campuses', '/api/outcomes', '/api/auth/me',
+    '/api/cases/1/attachments', '/api/cases/1/attachments/1/download']) {
     expect((await request(app).get(path)).status).toBe(401)
   }
   expect((await request(app).post('/api/cases').send({ title: 'Synthetic' })).status).toBe(401)
+  expect((await request(app).post('/api/cases/1/attachments/uploads').send({ filename: 'a.pdf', sizeBytes: 1 })).status).toBe(401)
+  expect((await request(app).post('/api/cases/1/attachments').send({})).status).toBe(401)
+  expect((await request(app).delete('/api/cases/1/attachments/1')).status).toBe(401)
   expect(getIdentity).not.toHaveBeenCalled()
   expect(query).not.toHaveBeenCalled()
 })

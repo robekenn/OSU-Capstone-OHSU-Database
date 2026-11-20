@@ -51,7 +51,7 @@ flowchart TB
         web["React + TypeScript web client\nInitial version implemented"]
         api["Node.js + Express API\nInitial version implemented"]
         db[("PostgreSQL 16\nSchema implemented")]
-        objects[("Private object storage\nProposed")]
+        objects[("Private object storage\nInterim: Supabase Storage")]
     end
 
     user -->|HTTPS| web
@@ -59,16 +59,17 @@ flowchart TB
     web -->|REST/JSON over HTTPS with bearer token| api
     api -->|Verify token| idp
     api -->|Parameterized SQL and transactions| db
-    api -.->|Original imports and generated exports| objects
+    api -->|Signed links, attachment checks| objects
+    web -->|Signed upload and download links| objects
 ```
 
 | Container | Responsibility | Current state |
 |---|---|---|
-| Web client | Accessible user interface, form validation, search, review workflow, and import/export actions | **Partly implemented.** `client/` is a Vite + React + TypeScript app with React Router. A shared layout (`components/Layout.tsx`) provides the header navigation and skip link. It has a sign-in page (`/login`), a New case form split into section forms (`/new`), a Cases list (`/cases`) with text search, course/campus/outcome filters kept in the page URL, and loading, error, and empty states, and a case detail page (`/cases/:caseId`). Review, import, and export screens are planned. The front-end RFC metadata is still Draft. |
-| API | Authentication, authorization, business rules, transactions, document processing, and all database/file access | **Partly implemented.** `server/` is an Express + TypeScript app with zod input validation and parameterized `pg` queries. Every route except the health check requires a verified and provisioned instructor. |
-| PostgreSQL | Durable case, version, taxonomy, usage, outcome, and review data | **Implemented.** Schema and database tests run against PostgreSQL 16.15 in CI. Where the hosted database lives is pending (OQ-1); Supabase is the leading option. |
-| Object storage | Private original uploads and generated export artifacts; database stores metadata and object keys | **Pending.** The S3 RFC is Proposed and retention rules are unresolved. |
-| Identity provider | User authentication and identity claims | **Implemented with Supabase Auth.** The API verifies Supabase bearer tokens and enforces authorization itself. Whether production uses Supabase Auth or OHSU SSO (OIDC) is pending (OQ-1). |
+| Web client | Accessible user interface, form validation, search, review workflow, and import/export actions | **Partly implemented.** `client/` is a Vite + React + TypeScript app with React Router. A shared layout (`components/Layout.tsx`) provides the header navigation and skip link. It has a New case form (`/new`) and a Cases list (`/cases`) with text search, course/campus/outcome filters kept in the page URL, and loading, error, and empty states. Review, import, and export screens are planned. The front-end RFC metadata is still Draft. |
+| API | Authentication, authorization, business rules, transactions, document processing, and all database/file access | **Partly implemented.** `server/` is an Express + TypeScript app with zod input validation and parameterized `pg` queries. Case, lookup, and profile routes require a verified and provisioned instructor; the health check stays public. |
+| PostgreSQL | Durable case, version, taxonomy, usage, outcome, and review data | **Implemented.** Schema and database tests run against PostgreSQL 16.15 in CI. |
+| Object storage | Private original uploads and generated export artifacts; database stores metadata and object keys | **Interim.** Case attachments (#63) use a private Supabase Storage bucket behind a replaceable interface (§3.3). The S3 RFC is still Proposed, and production storage and retention are unresolved. |
+| OHSU OIDC | User authentication and identity claims | **Pending integration details.** The API must still enforce authorization independently of the browser. |
 
 The system begins as a modular monolith: one web client, one API deployment, one relational database, and—if approved—one private object store. Microservices and asynchronous queues are not justified by the current scale or requirements.
 
@@ -102,7 +103,8 @@ The following endpoints are the baseline implementation contract. Before client 
 | `GET /api/cases` | Returns an array of `{ id, title, status, updatedAt }`, newest first. `updatedAt` is the current version's creation time. Optional parameters combine with AND: `search` matches the title or any text in the current version's content (case-insensitive); `course` and `campus` (ids) must match the same `case_use` row; `outcome` (id) must be mapped to the current version. A malformed or nonexistent id returns `400` with the offending `fields`. | No campus use in the response, no pagination. |
 | `GET /api/cases/:caseId` | See "Initial current-version detail view" below. | No history, mappings, or review summary. |
 | `GET /api/courses`, `GET /api/campuses`, `GET /api/outcomes` | Return every row of each reference table, sorted, for the Cases page's filter dropdowns. | Not in the target contract above; add them when the contract is next reviewed. |
-| `POST /api/cases` | Body `{ title, content }`. Creates the case, version 1 with status `draft`, and the current-version pointer in one transaction, recording the signed-in instructor as the case owner and the version's creator. Returns `201` with `{ id, versionId }`. A missing, blank, or over-300-character title returns `400`. | None known. |
+| `/api/cases/:caseId/attachments` (list, upload, download, remove) | See §3.3, Case attachments (#63). | Not in the target contract above; add it when the contract is next reviewed. |
+| `POST /api/cases` | Body `{ title, content }`. Creates the case, version 1 with status `draft`, and the current-version pointer in one transaction, then returns `201` with `{ id, versionId }`. A missing, blank, or over-300-character title returns `400`. | No creator or owner is recorded, because there is no signed-in user. |
 
 Errors currently return `{ "error": "<code>" }` (for example `invalid_request`, `not_found`, `internal_error`). A `400` from `GET /api/cases` adds a `fields` list naming the bad parameters, and a `400` from `POST /api/cases` adds zod's `issues` list. That is simpler than the error envelope below; the two should be reconciled before more routes are added.
 
@@ -171,15 +173,44 @@ Every approved instructor has the same application access. An Owner/Admin hierar
 
 Only the API connects to PostgreSQL. Schema changes are made through reviewed, ordered migrations before the application version that depends on them is released. Creating a case and its first version, changing a current-version pointer, and replacing a set of mappings must be transactional.
 
-If object storage is accepted, buckets remain private and the API authorizes every upload and download. PostgreSQL stores the owning case/version, object key, original filename, media type, size, checksum, creator, and timestamps; binary files do not belong in PostgreSQL. The storage metadata table, allowed file types and sizes, malware-scanning approach, retention period, and deletion behavior must be decided before uploads are enabled.
+Buckets remain private and the API authorizes every upload and download. PostgreSQL stores the owning case/version, object key, original filename, media type, size, checksum, uploader, and upload time; binary files do not belong in PostgreSQL.
+
+#### Case attachments (#63)
+
+Decided 2026-11-17 by Logan Moskal (issue assignee) for issue #63. This is an **interim** decision for development and demos on the current Vercel + Supabase deployment; it does not accept the [object-storage RFC](rfcs/2026-10-25-object-storage-for-uploads.md) and does not approve uploading real partner files. The team should confirm it, and the partner and OHSU IT still own the production storage choice (Open Question 4).
+
+| Question | Decision |
+|---|---|
+| Where files are stored | A **private Supabase Storage bucket** (default `case-files`) in the Supabase project the app already uses. Only the API holds the secret key (`SUPABASE_SECRET_KEY`, or Vercel's `SUPABASE_SERVICE_ROLE_KEY`); the browser only receives one-object signed links. Code reaches storage only through the `FileStorage` interface in `server/src/attachments/storage.ts`, so an S3 adapter can replace it if the RFC is accepted. Moving existing objects would then be a one-time copy keyed by `case_file.storage_key`. |
+| Allowed types and size | PDF, Word (`.docx`), PowerPoint (`.pptx`), Excel (`.xlsx`), PNG, and JPEG, **at most 25 MB per file** (under Supabase's free-tier 50 MB per-file cap). Enforced three times: the bucket's own type and size limits (`npm run storage:setup --workspace server`), the API, and `CHECK` constraints on `case_file`. |
+| How files are checked | **No malware scanner yet.** There is none available on Vercel or Supabase without adding an outside service, which needs approval (AGENTS.md). Until one exists: the API reads each stored object back and identifies its type from its bytes, not its name or the browser's claim; macro-enabled Office files are refused even when renamed; the stored `Content-Type` must match; and every download is sent as an attachment (`Content-Disposition`), never rendered inline. **Scanning must be in place before real partner files are uploaded.** |
+| Ownership | Files belong to **versions**. `case_file` holds one row per stored object and `case_version_file` links it to each version that has it. Composite foreign keys keep a file and its version in the same case. Saving a new version (#56) copies its predecessor's links with `carryForwardAttachments()` in the same transaction. Only the current version, and only while it is a draft, can gain or lose files; other states return `409`. |
+| Removing a file | Unlinks it from the current version only. The `case_file` row and the stored object are kept, so older versions still list and download it. Nothing is hard-deleted. |
+| Retention | Kept for as long as the case exists. There is no automatic expiry or lifecycle deletion. A retention period is still Open Question 4. |
+| Archived cases (#57) | Archiving changes nothing about attachments: they stay stored and downloadable, so restoring a case brings them back unchanged. |
+| Failed uploads | A `case_file` row is written only after the stored object passes every check, in the same transaction that links it to the version. If any check or the database write fails, the API deletes the object. If the browser closes between uploading and recording, the object has no row; the next upload request for that case deletes any such object older than one hour. |
+
+Upload flow. Vercel limits request bodies to a few MB, so file bytes never pass through the API:
+
+1. `POST /api/cases/:caseId/attachments/uploads` with `{ filename, sizeBytes }` checks the name, type, and size and that the current version is a draft, then returns `201 { uploadKey, uploadUrl, mediaType, maxBytes }`. Nothing is stored yet.
+2. The browser `PUT`s the file to `uploadUrl` with `Content-Type: mediaType`. The link works for one object key and expires after two hours (Supabase's fixed lifetime). The session token is not sent to storage.
+3. `POST /api/cases/:caseId/attachments` with `{ uploadKey, filename, sha256 }` (SHA-256 computed in the browser) reads the object back, checks size, type, and checksum, and records it. Returns `201` with the attachment.
+
+Other routes, all behind the instructor check:
+
+- `GET /api/cases/:caseId/attachments[?versionId=]` returns `{ versionId, editable, files: [{ id, filename, mediaType, sizeBytes, sha256, uploadedAt }] }` for the current version, or for any version of the case.
+- `GET /api/cases/:caseId/attachments/:fileId/download` returns `{ url, expiresInSeconds: 60 }`, a signed link that downloads the file under its original name.
+- `DELETE /api/cases/:caseId/attachments/:fileId` unlinks the file from the current draft version and returns `204`.
+
+Error codes: `unsupported_type`, `file_too_large`, `checksum_mismatch`, `upload_not_found`, `already_attached` (`409`), `version_not_editable` (`409`), `not_found` (`404`), and `storage_unavailable` (`503`, when the secret key isn't configured). Storage keys are random (`cases/<caseId>/<uuid>`) and never derived from the filename. Responses never include storage keys except the one being uploaded.
 
 Word import must normalize recognized sections into the version's `content` document and return an explicit list of unplaced content instead of dropping it. Export must preserve every template section in its defined order. Partner-owned source documents must not be committed to the public repository or sent to unapproved external services.
 
 ## 4. Data Design
 
-The implemented schema contains `campus`, `app_user`, `course`, `outcome`, `sim_case`, `case_version`, `tag`, `case_version_tag`, `case_use`, `case_version_outcome`, and `review`. Case content is currently stored as JSONB so the template can evolve while stable relational fields remain searchable. [`erd.md`](erd.md) has the entity-relationship diagram.
+The implemented schema contains `campus`, `app_user`, `course`, `outcome`, `sim_case`, `case_version`, `tag`, `case_version_tag`, `case_use`, `case_version_outcome`, `review`, `case_file`, and `case_version_file`. Case content is currently stored as JSONB so the template can evolve while stable relational fields remain searchable.
 
-`sim_case` owns the stable case identity and points to a current `case_version`; every version belongs to one case and creator. A case may reference a parent case when it is adapted. Join tables associate versions with tags and outcomes, while `case_use` associates a case with a campus and course. Reviews belong to a version and reviewer. `app_user.oidc_subject` is the stable external identity key; today it holds the Supabase Auth user ID.
+`sim_case` owns the stable case identity and points to a current `case_version`; every version belongs to one case and creator. A case may reference a parent case when it is adapted. Join tables associate versions with tags and outcomes, while `case_use` associates a case with a campus and course. Reviews belong to a version and reviewer. `case_file` records each attached file's metadata for a case, and `case_version_file` links it to the versions that have it (§3.3). `app_user.oidc_subject` is the stable external identity key.
 
 The following invariants apply to application code and should be strengthened in the schema where practical:
 
@@ -248,7 +279,7 @@ These questions block parts of implementation and should have named owners and d
 1. Will the team and OHSU accept Vercel + Supabase as the host, or is another environment required? Does production sign-in need OHSU single sign-on (OIDC)? Owner: Kenneth (requirements OQ-1).
 2. Who may review and approve a case, and can an author review their own case? An Owner/Admin hierarchy and student accounts are non-goals (requirements OQ-2).
 3. What are the canonical workflow states, allowed transitions, and visibility rules for drafts, submitted, approved, superseded, archived, and due-for-review cases?
-4. Is private S3-compatible object storage accepted? What are the upload limits, retention schedule, restore window, and deletion rules?
+4. Is private S3-compatible object storage accepted for production, replacing the interim Supabase Storage bucket (§3.3)? Which malware-scanning service is approved? What are the retention schedule, restore window, and deletion rules? (Upload types and the 25 MB limit are set for now in §3.3.)
 5. What is the canonical JSON schema for case content, and which fields must also be relational and searchable?
 6. What are the expected user count, case count beyond the initial 100-case performance target, campuses, concurrent usage, and document sizes?
 7. Should timestamps be migrated to `TIMESTAMPTZ`, and how will the current-version/same-case invariant be enforced?

@@ -134,6 +134,8 @@ npm run dev --workspace server   # terminal 1: API on http://localhost:3000
 npm run dev --workspace client   # terminal 2: prints the client URL
 ```
 
+To try case attachments (#63), also set `SUPABASE_SECRET_KEY` in `server/.env` (server only, never in `client/.env`) and run `npm run storage:setup --workspace server` once to create the private `case-files` bucket. Databases created before #63 need [`db/migrations/003_case_attachments.sql`](db/migrations/003_case_attachments.sql). Without the key, everything else works and the Attachments section says storage isn't set up. Upload fictional files only.
+
 The API checks the database connection at startup. Open the client URL and sign in; approved instructors land on `/cases`. [Cases list demo (#37)](docs/issue-37-demo.md) has a walkthrough using synthetic data.
 
 ### App checks

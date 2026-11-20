@@ -9,7 +9,7 @@
     "typecheck": "tsc -b",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "tsx --tsconfig tsconfig.app.json --test tests/cases.test.tsx tests/case-filters.test.tsx tests/theme.test.ts tests/case-detail.test.tsx tests/role-fields.test.tsx tests/case-sections.test.tsx"
+    "test": "tsx --tsconfig tsconfig.app.json --test tests/cases.test.tsx tests/case-filters.test.tsx tests/theme.test.ts tests/case-detail.test.tsx tests/role-fields.test.tsx tests/case-sections.test.tsx tests/attachments.test.tsx"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

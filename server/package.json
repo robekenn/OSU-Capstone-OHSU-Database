@@ -4,6 +4,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/index.ts",
+    "storage:setup": "tsx --env-file=.env src/scripts/setup-storage.ts",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",

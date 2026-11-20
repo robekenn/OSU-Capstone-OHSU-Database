@@ -1,5 +1,6 @@
 import express from 'express'
 import { requireInstructor } from './auth.js'
+import { attachmentsRouter } from './routes/attachments.js'
 import { casesRouter } from './routes/cases.js'
 import { lookupsRouter } from './routes/lookups.js'
 
@@ -16,6 +17,7 @@ export function createApp() {
   app.get('/api/auth/me', (_req, res) => {
     res.json({ id: res.locals.instructorId })
   })
+  app.use('/api/cases/:caseId/attachments', attachmentsRouter())
   app.use('/api/cases', casesRouter())
   app.use('/api', lookupsRouter())
 
