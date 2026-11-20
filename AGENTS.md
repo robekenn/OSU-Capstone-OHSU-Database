@@ -6,7 +6,7 @@ This file applies to the entire repository. It guides contributors and AI coding
 
 The project will provide a centralized system for faculty to develop, find, review, adapt, and maintain simulation-based learning experiences across OHSU campuses. It is not merely file storage. The product must support structured simulation design, quality assurance, curricular alignment, collaboration, version history, and continuous improvement.
 
-This repository is in early development. The application stack is decided and recorded in `docs/requirements.md` (Constraint C-1): PostgreSQL, Node.js + Express with TypeScript, and React + TypeScript built with Vite. Sign-in must use OHSU OIDC, but the identity-provider details are not settled. Do not invent requirements or commit the team to a cloud provider, file-storage service, authentication library, or deployment model until the team and project partner have documented that decision.
+This repository is in early development. The application stack is decided and recorded in `docs/requirements.md` (Constraint C-1): PostgreSQL, Node.js + Express with TypeScript, and React + TypeScript built with Vite. Users are OHSU instructors only; student accounts and an Owner/Admin role hierarchy are non-goals. Sign-in currently uses Supabase Auth with team-provisioned instructor accounts. Hosting and production sign-in are not decided (requirements OQ-1): the leading option is Vercel for the client and API with Supabase for the database, Auth, and file storage, and whether production must use OHSU single sign-on (OIDC) is still open. Do not invent requirements or commit the team to a cloud provider, file-storage service, authentication library, or deployment model until the team and project partner have documented that decision.
 
 ## Project outcomes
 
@@ -28,13 +28,13 @@ Changes should advance one or more of these outcomes:
 Use this order when requirements disagree:
 
 1. Written decisions approved by the OHSU project partner.
-2. Accepted decision records (RFCs) in `docs/rfcs/`.
+2. Accepted decision records: RFCs in `docs/rfcs/` and ADRs in `docs/adr/`.
 3. Approved requirements, backlog items, and acceptance criteria.
 4. The project description, problem statement, and objectives.
 5. The current OHSU simulation design template and needs-assessment form.
 6. Existing implementation and tests.
 
-Record significant product, architecture, data, security, or workflow decisions as RFCs in `docs/rfcs/`, named `YYYY-MM-DD-short-name.md`. Only an RFC with Status "Accepted" is a decision; Draft and Proposed RFCs are recommendations. If a needed decision has not been made, document the uncertainty and ask; do not silently choose a long-term direction.
+Record significant product, architecture, data, security, or workflow decisions in the repository. Use an RFC in `docs/rfcs/`, named `YYYY-MM-DD-short-name.md`, for a longer proposal that compares options and explains the recommendation. Use an ADR in `docs/adr/` for a short record of a decision the team has made. Only a record with Status "Accepted" is a decision; Draft and Proposed records are recommendations. If a needed decision has not been made, document the uncertainty and ask; do not silently choose a long-term direction.
 
 ## Current team ownership
 
@@ -61,7 +61,7 @@ The charter states that each concern must ultimately have exactly one named owne
 ## Before making a change
 
 1. Read this file and any more specific `AGENTS.md` in the area being changed.
-2. Read the related issue, acceptance criteria, RFCs, `docs/design.md`, and project-partner notes.
+2. Read the related issue, acceptance criteria, RFCs and ADRs, `docs/design.md`, and project-partner notes.
 3. Inspect the existing code, tests, schemas, migrations, and documentation before proposing a solution.
 4. Identify whether the work touches confidential material, health-related data, authorization, version history, or approval state.
 5. Ask for clarification when a choice would create a durable product or architecture commitment.
@@ -160,12 +160,12 @@ Do not use AI note-takers in partner meetings unless the partner explicitly agre
 
 ## Security and authorization
 
-Until the authentication and hosting model is approved, avoid assumptions that would make later integration difficult.
+Until the hosting model and production sign-in are approved, avoid assumptions that would make a later move to another host or to OHSU single sign-on difficult.
 
 - Enforce authorization on the server for every create, read, update, review, approval, export, and administrative action.
 - Do not rely on hidden buttons or client-side checks for access control.
 - Apply least privilege and default-deny behavior.
-- Separate ordinary editing, peer review, approval, and system-administration capabilities.
+- Every approved instructor has the same application access today. Do not add admin tiers, an Owner/Admin hierarchy, student accounts, or other new roles. Who may review and approve a case is undecided (requirements OQ-2), so keep reviewing and approving as separate server-side checks that those rules can attach to later.
 - Validate and normalize untrusted input on the server.
 - Use parameterized database access. Never build queries by concatenating user input.
 - Protect uploaded content by validating type and size, generating safe storage names, and preventing executable uploads.
@@ -198,9 +198,10 @@ Until the authentication and hosting model is approved, avoid assumptions that w
 
 ### Repository structure
 
-- `client/`: React + TypeScript web client, built with Vite and routed with React Router. Calls the API through `/api`; the Vite dev server forwards `/api` to `http://localhost:3000`. Styling is plain CSS: every color is a token in `client/src/index.css` (light and dark), and `client/tests/theme.test.ts` fails on a color value used anywhere else or on text/border contrast below WCAG 2.1 AA. Tests are in `client/tests/`.
-- `server/`: Node.js + Express + TypeScript API. Validates request bodies with zod and talks to PostgreSQL through `pg` with parameterized queries. `server/.env.example` lists the settings it reads. Tests are in `server/tests/` (vitest and supertest).
-- `db/`: `schema.sql` and its SQL tests.
+- `client/`: React + TypeScript web client, built with Vite and routed with React Router. Signs instructors in with Supabase Auth (`client/src/auth/`) and calls the API through `/api` with the bearer token; the Vite dev server forwards `/api` to `http://localhost:3000`. Styling is plain CSS: every color is a token in `client/src/index.css` (light and dark), and `client/tests/theme.test.ts` fails on a color value used anywhere else or on text/border contrast below WCAG 2.1 AA. Tests are in `client/tests/`.
+- `server/`: Node.js + Express + TypeScript API. Verifies the Supabase Auth token and requires a provisioned instructor on every route except `/api/health` (`server/src/auth.ts`). Validates request bodies with zod and talks to PostgreSQL through `pg` with parameterized queries. `server/.env.example` lists the settings it reads. Tests are in `server/tests/` (vitest and supertest).
+- `db/`: `schema.sql` (the full schema for a new database), its SQL tests, and `migrations/` for bringing an existing database up to date.
+- `vercel.json`: deploys `client/` and `server/` as two Vercel services and routes `/api/*` to the API. Hosting is not final (see the scope section above).
 - The root `package.json` is an npm workspaces file. Scripts run from the root apply to both `client/` and `server/`.
 
 ### Commands
@@ -219,7 +220,7 @@ Run these from the repository root. README.md ("Run the app") has the full local
 | Start the API | `npm run dev --workspace server` (reads `server/.env`) |
 | Start the client | `npm run dev --workspace client` |
 
-Not set up yet: a formatter, schema migrations (changes go straight into `db/schema.sql`), and seed data. CI does not set `TEST_DATABASE_URL`, so the server's database tests are skipped there; run them locally when you change server routes or queries. Say so in the pull request rather than claiming checks ran that didn't.
+Not set up yet: a formatter, a migration runner, and seed data. When you change `db/schema.sql`, also add a numbered file in `db/migrations/` if existing databases need the change; migrations are applied by hand with `psql`. CI does not set `TEST_DATABASE_URL`, so the server's database tests are skipped there; run them locally when you change server routes or queries. Say so in the pull request rather than claiming checks ran that didn't.
 
 For all code:
 
@@ -273,9 +274,9 @@ Before requesting review, run the documented formatter, linter, type checks, tes
 
 Update this file as decisions become known. The next important additions are:
 
-- Formatter, migration, and seed commands once they exist.
-- Authentication, roles, and permission matrix.
-- Hosting, environments, and deployment process.
+- Formatter, migration-runner, and seed commands once they exist.
+- Production sign-in decision (Supabase Auth or OHSU single sign-on) and who may review and approve cases.
+- Hosting, environments, and deployment process once the hosting decision is made.
 - Final peer-review and approval workflow.
 - Annual-review ownership, timing, reminders, and escalation.
 - Data-retention, backup, recovery, and deletion rules.
