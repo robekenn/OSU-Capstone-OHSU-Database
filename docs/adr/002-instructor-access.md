@@ -1,6 +1,6 @@
 # Team-provisioned instructor access
 
-Status: Proposed for review in the login pull request.
+Status: Accepted
 
 The development app is for authorized OHSU instructors, not public
 registration. Replace the earlier signup and Owner/Admin proposal with one
