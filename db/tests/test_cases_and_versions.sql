@@ -57,4 +57,13 @@ SELECT test.assert_raises(
   $$UPDATE sim_case SET current_version_id = 999999 WHERE id = 9101$$,
   '23503');
 
+SELECT test.assert_equals('new cases are active',
+  (SELECT archived_at IS NULL FROM sim_case WHERE id = 9101), TRUE);
+UPDATE sim_case SET archived_at = now() WHERE id = 9101;
+SELECT test.assert_equals('archiving keeps the current version',
+  (SELECT current_version_id FROM sim_case WHERE id = 9101 AND archived_at IS NOT NULL), 9203);
+UPDATE sim_case SET archived_at = NULL WHERE id = 9101;
+SELECT test.assert_equals('restoring keeps the previous version',
+  (SELECT content FROM case_version WHERE id = 9201), '{"overview": "synthetic v1"}'::JSONB);
+
 ROLLBACK;

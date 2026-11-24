@@ -28,6 +28,8 @@ test('health stays public; every case, filter, and profile endpoint requires a s
     expect((await request(app).get(path)).status).toBe(401)
   }
   expect((await request(app).post('/api/cases').send({ title: 'Synthetic' })).status).toBe(401)
+  expect((await request(app).post('/api/cases/1/versions').send({})).status).toBe(401)
+  expect((await request(app).patch('/api/cases/1/archive').send({ archived: true })).status).toBe(401)
   expect((await request(app).post('/api/cases/1/attachments/uploads').send({ filename: 'a.pdf', sizeBytes: 1 })).status).toBe(401)
   expect((await request(app).post('/api/cases/1/attachments').send({})).status).toBe(401)
   expect((await request(app).delete('/api/cases/1/attachments/1')).status).toBe(401)

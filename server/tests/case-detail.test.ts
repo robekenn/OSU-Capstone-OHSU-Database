@@ -15,12 +15,12 @@ app.use((_error: unknown, _req: express.Request, res: express.Response, _next: e
 beforeEach(() => { query.mockReset() })
 
 test('GET detail returns the current version without changing data', async () => {
-  query.mockResolvedValue({ rows: [{ id: 7, title: 'Synthetic case', versionId: 9,
+  query.mockResolvedValue({ rows: [{ id: 7, title: 'Synthetic case', archived: false, versionId: 9,
     versionNumber: 1, status: 'draft', createdAt: '2026-11-06T12:00:00Z',
     content: { roles: { participantCounts: '6-10' } } }] })
   const response = await request(app).get('/api/cases/7')
   expect(response.status).toBe(200)
-  expect(response.body).toEqual({ id: 7, title: 'Synthetic case', currentVersion: {
+  expect(response.body).toEqual({ id: 7, title: 'Synthetic case', archived: false, currentVersion: {
     id: 9, versionNumber: 1, status: 'draft', createdAt: '2026-11-06T12:00:00Z',
     content: { roles: { participantCounts: '6-10' } },
   } })

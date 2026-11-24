@@ -48,7 +48,7 @@ const finalizeBody = z.object({
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
 })
 
-const listQuery = z.object({ versionId: positiveId.optional() })
+const versionQuery = z.object({ versionId: positiveId.optional() })
 
 const FILE_COLUMNS = `f.id, f.original_filename AS filename, f.media_type AS "mediaType",
   f.size_bytes::int AS "sizeBytes", f.sha256, f.uploaded_at AS "uploadedAt"`
@@ -120,20 +120,24 @@ export function attachmentsRouter(getStorage: () => FileStorage | null = default
 
   // The case's current version, if it has one, and whether files may change on it.
   async function currentVersion(run: RunQuery, caseId: number, lock = false) {
+    // Acquire the lock first. In a separate query the newly current version is
+    // visible if another transaction appended it while we were waiting.
+    if (lock) await run('SELECT c.id FROM sim_case c WHERE c.id = $1 FOR UPDATE OF c', [caseId])
     const result = await run(
-      `SELECT v.id AS "versionId", v.status
+      `SELECT v.id AS "versionId", v.status, c.archived_at IS NOT NULL AS archived
          FROM sim_case c
          LEFT JOIN case_version v ON v.id = c.current_version_id AND v.case_id = c.id
-        WHERE c.id = $1${lock ? ' FOR UPDATE OF c' : ''}`,
+        WHERE c.id = $1`,
       [caseId],
     )
-    const row: { versionId: number | null; status: string | null } | undefined = result.rows[0]
+    const row: { versionId: number | null; status: string | null; archived: boolean } | undefined = result.rows[0]
     if (!row) throw new HttpError(404, 'not_found')
     return row
   }
 
-  function requireDraft(version: { versionId: number | null; status: string | null }) {
-    if (version.versionId === null || version.status !== 'draft') {
+  function requireDraft(version: { versionId: number | null; status: string | null; archived: boolean }, expected?: number) {
+    if (expected !== undefined && expected !== version.versionId) throw new HttpError(409, 'stale_version')
+    if (version.versionId === null || version.status !== 'draft' || version.archived) {
       throw new HttpError(409, 'version_not_editable')
     }
     return version.versionId
@@ -149,14 +153,15 @@ export function attachmentsRouter(getStorage: () => FileStorage | null = default
   // List the files on the current version, or on ?versionId= (any version of this case).
   router.get('/', async (req, res, next) => {
     const caseId = parseCaseId(mountedCaseId(req))
-    const query = listQuery.safeParse(req.query)
+    const query = versionQuery.safeParse(req.query)
     if (caseId === null || !query.success) {
       res.status(400).json({ error: 'invalid_request' })
       return
     }
     try {
-      const versionResult = await pool.query<{ versionId: number | null; status: string | null; isCurrent: boolean | null }>(
-        `SELECT v.id AS "versionId", v.status, v.id = c.current_version_id AS "isCurrent"
+      const versionResult = await pool.query<{ versionId: number | null; status: string | null; isCurrent: boolean | null; archived: boolean }>(
+        `SELECT v.id AS "versionId", v.status, v.id = c.current_version_id AS "isCurrent",
+                c.archived_at IS NOT NULL AS archived
            FROM sim_case c
            LEFT JOIN case_version v ON v.case_id = c.id AND v.id = COALESCE($2::int, c.current_version_id)
           WHERE c.id = $1`,
@@ -181,7 +186,7 @@ export function attachmentsRouter(getStorage: () => FileStorage | null = default
       )
       res.json({
         versionId: version.versionId,
-        editable: version.isCurrent === true && version.status === 'draft',
+        editable: version.isCurrent === true && version.status === 'draft' && !version.archived,
         files: files.rows,
       })
     } catch (error) {
@@ -193,7 +198,8 @@ export function attachmentsRouter(getStorage: () => FileStorage | null = default
   router.post('/uploads', async (req, res, next) => {
     const caseId = parseCaseId(mountedCaseId(req))
     const body = uploadRequestBody.safeParse(req.body)
-    if (caseId === null || !body.success) {
+    const query = versionQuery.safeParse(req.query)
+    if (caseId === null || !body.success || !query.success) {
       res.status(400).json({ error: 'invalid_request' })
       return
     }
@@ -212,7 +218,7 @@ export function attachmentsRouter(getStorage: () => FileStorage | null = default
       return
     }
     try {
-      requireDraft(await currentVersion(onPool, caseId))
+      requireDraft(await currentVersion(onPool, caseId), query.data.versionId)
       await sweepAbandoned(storage, caseId)
       const uploadKey = `cases/${caseId}/${randomUUID()}`
       const uploadUrl = await storage.createUploadUrl(uploadKey)
@@ -226,8 +232,9 @@ export function attachmentsRouter(getStorage: () => FileStorage | null = default
   router.post('/', async (req, res, next) => {
     const caseId = parseCaseId(mountedCaseId(req))
     const body = finalizeBody.safeParse(req.body)
+    const query = versionQuery.safeParse(req.query)
     const keyPattern = new RegExp(`^cases/${caseId}/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
-    if (caseId === null || !body.success || !keyPattern.test(body.data.uploadKey)) {
+    if (caseId === null || !body.success || !query.success || !keyPattern.test(body.data.uploadKey)) {
       res.status(400).json({ error: 'invalid_request' })
       return
     }
@@ -277,7 +284,7 @@ export function attachmentsRouter(getStorage: () => FileStorage | null = default
     try {
       const file = await withTransaction(async (client) => {
         const run: RunQuery = (text, values) => client.query(text, values)
-        const versionId = requireDraft(await currentVersion(run, caseId, true))
+        const versionId = requireDraft(await currentVersion(run, caseId, true), query.data.versionId)
         const inserted = await client.query(
           `INSERT INTO case_file (case_id, storage_key, original_filename, media_type, size_bytes, sha256, uploaded_by)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -337,14 +344,15 @@ export function attachmentsRouter(getStorage: () => FileStorage | null = default
   router.delete('/:fileId', async (req, res, next) => {
     const caseId = parseCaseId(mountedCaseId(req))
     const fileId = parseCaseId(req.params.fileId)
-    if (caseId === null || fileId === null) {
+    const query = versionQuery.safeParse(req.query)
+    if (caseId === null || fileId === null || !query.success) {
       res.status(400).json({ error: 'invalid_request' })
       return
     }
     try {
       await withTransaction(async (client) => {
         const run: RunQuery = (text, values) => client.query(text, values)
-        const versionId = requireDraft(await currentVersion(run, caseId, true))
+        const versionId = requireDraft(await currentVersion(run, caseId, true), query.data.versionId)
         const removed = await client.query(
           'DELETE FROM case_version_file WHERE case_version_id = $1 AND case_file_id = $2 AND case_id = $3',
           [versionId, fileId, caseId],

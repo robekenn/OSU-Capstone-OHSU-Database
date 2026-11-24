@@ -1,4 +1,5 @@
 import type { CaseContent } from '../templates/caseTemplate'
+import type { DraftChanges } from '../templates/editContent'
 import { appFetch } from './http'
 
 export type CaseSummary = {
@@ -11,6 +12,7 @@ export type CaseSummary = {
 export type CaseDetail = {
   id: number
   title: string
+  archived: boolean
   currentVersion: {
     id: number
     versionNumber: number
@@ -30,7 +32,7 @@ export async function getCase(caseId: string, signal?: AbortSignal): Promise<Cas
   if (data && typeof data === 'object') {
     const item = data as Record<string, unknown>
     const version = item.currentVersion
-    if (typeof item.id === 'number' && typeof item.title === 'string'
+    if (typeof item.id === 'number' && typeof item.title === 'string' && typeof item.archived === 'boolean'
       && (version === null || (version && typeof version === 'object'
         && typeof (version as Record<string, unknown>).id === 'number'
         && typeof (version as Record<string, unknown>).versionNumber === 'number'
@@ -62,8 +64,10 @@ export function filtersToQuery(filters: CaseFilters): string {
 // The server rejected a filter value, so refreshing won't help; clearing will.
 export class InvalidFilterError extends Error {}
 
-export async function listCases(filters: CaseFilters = {}, signal?: AbortSignal): Promise<CaseSummary[]> {
-  const response = await appFetch('/api/cases' + filtersToQuery(filters), { signal })
+export async function listCases(filters: CaseFilters = {}, signal?: AbortSignal, archived = false): Promise<CaseSummary[]> {
+  const params = new URLSearchParams(filtersToQuery(filters))
+  if (archived) params.set('archived', '1')
+  const response = await appFetch('/api/cases' + (params.size ? '?' + params : ''), { signal })
   if (response.status === 400) {
     // Usually a bookmarked filter whose course, campus or outcome no longer exists.
     const body: unknown = await response.json().catch(() => null)
@@ -132,4 +136,27 @@ export async function createCase(title: string, content: CaseContent): Promise<{
     throw new Error('Could not save the case (status ' + response.status + ').')
   }
   return response.json()
+}
+
+export async function saveCaseVersion(caseId: string, expectedVersionId: number, title: string, changes: DraftChanges) {
+  const response = await appFetch('/api/cases/' + encodeURIComponent(caseId) + '/versions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expectedVersionId, title, changes }),
+  })
+  if (response.status === 409) {
+    const body: { error?: string } | null = await response.json().catch(() => null)
+    if (body?.error === 'stale_version') {
+      throw new Error('Someone saved a newer version. Your changes are still here. Open the case in another tab to compare.')
+    }
+    throw new Error('This case can no longer be edited. Your changes are still here.')
+  }
+  if (!response.ok) throw new Error('Could not save the new version (status ' + response.status + ').')
+}
+
+export async function setCaseArchived(caseId: string, archived: boolean) {
+  const response = await appFetch('/api/cases/' + encodeURIComponent(caseId) + '/archive', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archived }),
+  })
+  if (response.status === 409) throw new Error('Only a case with a current draft can be archived.')
+  if (!response.ok) throw new Error(`Could not ${archived ? 'archive' : 'restore'} the case (status ${response.status}).`)
 }

@@ -7,12 +7,13 @@ import FieldInput from './FieldInput'
 type Props = {
   formSection: FormSection
   content: CaseContent
+  readOnlyFields?: ReadonlySet<string>
   onChange: (templateKey: string, fieldKey: string, value: FieldValue) => void
 }
 
 // Draws every field of one form section. It holds no state of its own: the page owns
 // all the content, so nothing is lost when the user moves to another section.
-export default function SectionForm({ formSection, content, onChange }: Props) {
+export default function SectionForm({ formSection, content, readOnlyFields, onChange }: Props) {
   const blocks: ReactNode[] = []
 
   for (const templateKey of formSection.templateKeys) {
@@ -22,6 +23,11 @@ export default function SectionForm({ formSection, content, onChange }: Props) {
     const values = content[templateKey] ?? {}
     const fields: ReactNode[] = []
     for (const field of template.fields) {
+      const prefix = `${templateKey}.${field.key}`
+      if (readOnlyFields?.has(prefix) || readOnlyFields?.has(prefix + 'Other')) {
+        fields.push(<p key={field.key}>{field.label} contains older data. It stays as saved and is visible in case details.</p>)
+        continue
+      }
       const otherRaw = values[field.key + 'Other']
       const otherValue = typeof otherRaw === 'string' ? otherRaw : ''
       fields.push(

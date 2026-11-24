@@ -23,6 +23,8 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
   const instructor = {
     get: (path: string) => request(app).get(path).set('Authorization', 'Bearer synthetic-session'),
     post: (path: string) => request(app).post(path).set('Authorization', 'Bearer synthetic-session'),
+    patch: (path: string) => request(app).patch(path).set('Authorization', 'Bearer synthetic-session'),
+    delete: (path: string) => request(app).delete(path).set('Authorization', 'Bearer synthetic-session'),
   }
 
   beforeAll(async () => {
@@ -258,5 +260,116 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
     const detail = await instructor.get('/api/cases/' + created.body.id)
     expect(detail.status).toBe(200)
     expect(detail.body.currentVersion.content).toEqual(content)
+  })
+
+  test('saving a draft once preserves the old version and copies its links', async () => {
+    const original = {
+      generalInformation: { campus: 'Synthetic Campus', course: 'Synthetic course', oldField: ['keep'] },
+      roles: { participants: ['Observers'], participantCounts: '6-10' },
+      retiredSection: { value: 73 },
+    }
+    const created = await instructor.post('/api/cases').send({ title: 'Synthetic editable case', content: original })
+    const { id, versionId } = created.body
+    const file = await admin.query(
+      `INSERT INTO case_file (case_id, storage_key, original_filename, media_type, size_bytes, sha256, uploaded_by)
+       VALUES ($1, $2, 'synthetic.pdf', 'application/pdf', 42, repeat('a', 64), 9001) RETURNING id`,
+      [id, `cases/${id}/00000000-0000-4000-8000-000000000001`],
+    )
+    await admin.query('INSERT INTO case_version_file VALUES ($1, $2, $3)', [versionId, file.rows[0].id, id])
+    await admin.query('INSERT INTO case_version_outcome VALUES ($1, 9301)', [versionId])
+    const tag = await admin.query("INSERT INTO tag (category, name) VALUES ('topic', 'Synthetic tag') RETURNING id")
+    await admin.query('INSERT INTO case_version_tag VALUES ($1, $2)', [versionId, tag.rows[0].id])
+
+    const save = () => instructor.post(`/api/cases/${id}/versions`).send({
+      expectedVersionId: versionId, title: 'Synthetic updated case', changes: {
+        generalInformation: { campus: null, course: 'Updated synthetic course' },
+        roles: { participants: [{ role: 'Observers', detail: '8' }] },
+      },
+    })
+    const responses = await Promise.all([save(), save()])
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409])
+    expect(responses.find((response) => response.status === 409)?.body.error).toBe('stale_version')
+    const nextId = responses.find((response) => response.status === 201)!.body.versionId
+    const staleRemoval = await instructor.delete(`/api/cases/${id}/attachments/${file.rows[0].id}?versionId=${versionId}`)
+    expect(staleRemoval.status).toBe(409)
+    const edit = await instructor.get(`/api/cases/${id}`)
+    expect(edit.body.title).toBe('Synthetic updated case')
+    expect(edit.body.currentVersion).toMatchObject({ id: nextId, versionNumber: 2, status: 'draft' })
+    expect(edit.body.currentVersion.content).toEqual({
+      generalInformation: { course: 'Updated synthetic course', oldField: ['keep'] },
+      roles: { participants: [{ role: 'Observers', detail: '8' }], participantCounts: '6-10' },
+      retiredSection: { value: 73 },
+    })
+    const versions = await admin.query('SELECT id, content, created_by FROM case_version WHERE case_id = $1 ORDER BY version_number', [id])
+    expect(versions.rows).toEqual([{ id: versionId, content: original, created_by: 9001 },
+      { id: nextId, content: edit.body.currentVersion.content, created_by: 9001 }])
+    for (const version of [versionId, nextId]) {
+      expect((await instructor.get(`/api/cases/${id}/attachments?versionId=${version}`)).body.files)
+        .toMatchObject([{ id: file.rows[0].id }])
+      expect((await admin.query('SELECT outcome_id FROM case_version_outcome WHERE case_version_id = $1', [version])).rows)
+        .toEqual([{ outcome_id: 9301 }])
+      expect((await admin.query('SELECT tag_id FROM case_version_tag WHERE case_version_id = $1', [version])).rows)
+        .toEqual([{ tag_id: tag.rows[0].id }])
+    }
+  })
+
+  test('editing a field retains original PostgreSQL precision in untouched legacy content', async () => {
+    const title = 'Synthetic legacy precision'
+    const { body: { id, versionId } } = await instructor.post('/api/cases').send({ title })
+    await admin.query(`UPDATE case_version SET content =
+      '{"generalInformation":{"campus":"Synthetic Campus","legacyNumber":9007199254740993}}'::jsonb WHERE id = $1`, [versionId])
+    const change = await instructor.post(`/api/cases/${id}/versions`).send({
+      expectedVersionId: versionId, title, changes: { generalInformation: { campus: null } },
+    })
+    expect(change.status).toBe(201)
+    const saved = await admin.query("SELECT content -> 'generalInformation' ->> 'legacyNumber' AS value FROM case_version WHERE id = $1",
+      [change.body.versionId])
+    expect(saved.rows[0]?.value).toBe('9007199254740993')
+  })
+
+  test('archiving hides the case from active results and restoration keeps its version', async () => {
+    const created = await instructor.post('/api/cases').send({ title: 'Synthetic archive example' })
+    const { id, versionId } = created.body
+    const path = `/api/cases/${id}`
+    expect((await instructor.patch(path + '/archive').send({ archived: true })).status).toBe(204)
+    const detail = await instructor.get(path)
+    expect(detail.body).toMatchObject({ archived: true, currentVersion: { id: versionId, status: 'draft' } })
+    expect((await instructor.get('/api/cases?search=Synthetic%20archive%20example')).body).toEqual([])
+    expect((await instructor.get('/api/cases?archived=1&search=Synthetic%20archive%20example')).body)
+      .toMatchObject([{ id }])
+    expect((await instructor.get(`${path}/attachments`)).body.editable).toBe(false)
+    expect((await instructor.post(path + '/versions').send({ expectedVersionId: versionId, title: 'Synthetic change', changes: {} })).status).toBe(409)
+    expect((await instructor.patch(path + '/archive').send({ archived: false })).status).toBe(204)
+    expect((await instructor.get(path)).body).toMatchObject({ archived: false, currentVersion: { id: versionId } })
+    expect((await instructor.get('/api/cases?search=Synthetic%20archive%20example')).body).toMatchObject([{ id }])
+    expect((await instructor.get('/api/cases?archived=1&search=Synthetic%20archive%20example')).body).toEqual([])
+    expect((await admin.query('SELECT id FROM case_version WHERE case_id = $1', [id])).rows).toEqual([{ id: versionId }])
+  })
+
+  test('non-drafts cannot be edited or archived, and malformed requests do not write', async () => {
+    const { body: { id, versionId } } = await instructor.post('/api/cases').send({ title: 'Synthetic approved case' })
+    await admin.query("UPDATE case_version SET status = 'approved' WHERE id = $1", [versionId])
+    expect((await instructor.post(`/api/cases/${id}/versions`).send({ expectedVersionId: 0, title: 'Synthetic example' })).status).toBe(400)
+    expect((await instructor.post(`/api/cases/${id}/versions`).send({ expectedVersionId: versionId, title: 'Synthetic example', changes: {} })).status).toBe(409)
+    expect((await instructor.patch(`/api/cases/${id}/archive`).send({ archived: true })).status).toBe(409)
+    expect((await instructor.patch('/api/cases/2147483647/archive').send({ archived: true })).status).toBe(404)
+  })
+
+  test('a failed pointer update rolls back the new version and leaves the case as saved', async () => {
+    const title = 'Synthetic rollback example'
+    const content = { generalInformation: { course: 'Synthetic course' } }
+    const { body: { id, versionId } } = await instructor.post('/api/cases').send({ title, content })
+    // Force a write failure after the new version and its links have been inserted.
+    await admin.query("ALTER TABLE sim_case ADD CONSTRAINT synthetic_title_guard CHECK (title <> 'Synthetic rejected title')")
+    try {
+      const result = await instructor.post(`/api/cases/${id}/versions`).send({
+        expectedVersionId: versionId, title: 'Synthetic rejected title', changes: { generalInformation: { course: null } },
+      })
+      expect(result.status).toBe(500)
+      expect((await instructor.get(`/api/cases/${id}`)).body).toMatchObject({ title, currentVersion: { id: versionId, content } })
+      expect((await admin.query('SELECT id FROM case_version WHERE case_id = $1', [id])).rows).toEqual([{ id: versionId }])
+    } finally {
+      await admin.query('ALTER TABLE sim_case DROP CONSTRAINT synthetic_title_guard')
+    }
   })
 })
