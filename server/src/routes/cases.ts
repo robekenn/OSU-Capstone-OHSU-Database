@@ -5,9 +5,17 @@ import { pool, withTransaction } from '../db.js'
 import { carryForwardAttachments } from './attachments.js'
 
 // Everything the browser sends is checked here before it touches the database.
+// A database id: a positive whole number that fits a Postgres INT.
+const dbId = z.number().int().positive().max(2_147_483_647)
+
 const createCaseBody = z.object({
   title: z.string().trim().min(1).max(300),
   content: z.record(z.string(), z.unknown()).default({}),
+  // Where the case is used (case_use) and which outcomes it supports
+  // (case_version_outcome). These are not part of `content`.
+  campusId: dbId.optional(),
+  courseIds: z.array(dbId).default([]),
+  outcomeIds: z.array(dbId).default([]),
 })
 
 // A filter id must be a plain positive whole number that fits a Postgres INT.
@@ -247,13 +255,30 @@ export function casesRouter() {
   })
 
   // Create a case as a draft: one sim_case row plus its version 1, all-or-nothing.
+  // If a campus and courses are given, the case_use rows and the outcome mappings
+  // are saved in the same transaction, so the Cases page filters can find the case.
   router.post('/', async (req, res, next) => {
     const parsed = createCaseBody.safeParse(req.body)
     if (!parsed.success) {
       res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues })
       return
     }
-    const { title, content } = parsed.data
+    const { title, content, campusId } = parsed.data
+    // The same id twice would break the primary keys of case_use and
+    // case_version_outcome, so keep each id once.
+    const courseIds = [...new Set(parsed.data.courseIds)]
+    const outcomeIds = [...new Set(parsed.data.outcomeIds)]
+
+    // case_use needs a campus AND a course on every row, so one without the
+    // other can't be saved. Say so instead of quietly dropping it.
+    if (courseIds.length > 0 && campusId === undefined) {
+      res.status(400).json({ error: 'invalid_request', fields: ['campusId'] })
+      return
+    }
+    if (campusId !== undefined && courseIds.length === 0) {
+      res.status(400).json({ error: 'invalid_request', fields: ['courseIds'] })
+      return
+    }
 
     try {
       const created = await withTransaction(async (client) => {
@@ -272,10 +297,34 @@ export function casesRouter() {
         const versionId: number = versionResult.rows[0].id
 
         await client.query('UPDATE sim_case SET current_version_id = $1 WHERE id = $2', [versionId, caseId])
+
+        // One case_use row per course the case is used in, at the chosen campus.
+        for (const courseId of courseIds) {
+          await client.query(
+            'INSERT INTO case_use (case_id, campus_id, course_id) VALUES ($1, $2, $3)',
+            [caseId, campusId, courseId],
+          )
+        }
+
+        // One mapping row per outcome this version supports.
+        for (const outcomeId of outcomeIds) {
+          await client.query(
+            'INSERT INTO case_version_outcome (case_version_id, outcome_id) VALUES ($1, $2)',
+            [versionId, outcomeId],
+          )
+        }
+
         return { id: caseId, versionId }
       })
       res.status(201).json(created)
     } catch (error) {
+      // 23503 is PostgreSQL's "foreign key violation": a campus, course or
+      // outcome id that is not in its table. The caller's mistake, so a 400.
+      // The transaction has already rolled back, so nothing was saved.
+      if (error instanceof Error && (error as { code?: string }).code === '23503') {
+        res.status(400).json({ error: 'invalid_request', fields: ['campusId', 'courseIds', 'outcomeIds'] })
+        return
+      }
       next(error)
     }
   })
