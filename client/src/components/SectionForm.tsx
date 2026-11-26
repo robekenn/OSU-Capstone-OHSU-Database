@@ -8,12 +8,15 @@ type Props = {
   formSection: FormSection
   content: CaseContent
   readOnlyFields?: ReadonlySet<string>
+  // Fields left out of the form entirely, as "templateKey.fieldKey". Used when another
+  // control (the campus and course pickers) replaces them. Saved values are not touched.
+  hiddenFields?: ReadonlySet<string>
   onChange: (templateKey: string, fieldKey: string, value: FieldValue) => void
 }
 
 // Draws every field of one form section. It holds no state of its own: the page owns
 // all the content, so nothing is lost when the user moves to another section.
-export default function SectionForm({ formSection, content, readOnlyFields, onChange }: Props) {
+export default function SectionForm({ formSection, content, readOnlyFields, hiddenFields, onChange }: Props) {
   const blocks: ReactNode[] = []
 
   for (const templateKey of formSection.templateKeys) {
@@ -24,6 +27,7 @@ export default function SectionForm({ formSection, content, readOnlyFields, onCh
     const fields: ReactNode[] = []
     for (const field of template.fields) {
       const prefix = `${templateKey}.${field.key}`
+      if (hiddenFields?.has(prefix)) continue
       if (readOnlyFields?.has(prefix) || readOnlyFields?.has(prefix + 'Other')) {
         fields.push(<p key={field.key}>{field.label} contains older data. It stays as saved and is visible in case details.</p>)
         continue

@@ -126,12 +126,28 @@ export const listCampuses = (signal?: AbortSignal) =>
 export const listOutcomes = (signal?: AbortSignal) =>
   fetchList<Outcome>('/api/outcomes', { framework: isString, code: isNullableString, description: isString }, signal)
 
-export async function createCase(title: string, content: CaseContent): Promise<{ id: number; versionId: number }> {
+// Where a case is used and what it teaches, as typed. These go beside `content`, not inside
+// it: the server saves them in their own tables, creating any campus, course or outcome that
+// is new, so the Cases page filters can offer them.
+export type CaseLinks = { campus?: string; courses: string[]; outcomes: string[] }
+
+export async function createCase(
+  title: string,
+  content: CaseContent,
+  links: CaseLinks = { courses: [], outcomes: [] },
+): Promise<{ id: number; versionId: number }> {
   const response = await appFetch('/api/cases', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, content }),
+    body: JSON.stringify({ title, content, ...links }),
   })
+  if (response.status === 400) {
+    // The server checks the links too. Say what is wrong instead of a bare status.
+    const body: { fields?: unknown } | null = await response.json().catch(() => null)
+    if (body && Array.isArray(body.fields) && body.fields.some((field) => ['campus', 'courses', 'outcomes'].includes(String(field)))) {
+      throw new Error('A campus needs at least one course, and a course needs a campus. Check them and try again.')
+    }
+  }
   if (!response.ok) {
     throw new Error('Could not save the case (status ' + response.status + ').')
   }
