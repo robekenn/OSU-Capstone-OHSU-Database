@@ -3,11 +3,23 @@ import { z } from 'zod'
 import type { PoolClient } from 'pg'
 import { pool, withTransaction } from '../db.js'
 import { carryForwardAttachments } from './attachments.js'
+import { saveCaseLinks } from '../caseLinks.js'
 
 // Everything the browser sends is checked here before it touches the database.
+// A campus or course as typed by the author, and an outcome statement.
+const shortName = z.string().trim().min(1).max(300)
+const outcomeName = z.string().trim().min(1).max(2000)
+
 const createCaseBody = z.object({
   title: z.string().trim().min(1).max(300),
   content: z.record(z.string(), z.unknown()).default({}),
+  // Where the case is used and what it teaches, as typed. Saving creates any campus,
+  // course or outcome that is not in its table yet, and links the case to each one,
+  // so the Cases page filters can offer the values that cases actually use.
+  // These are not part of `content`.
+  campus: shortName.optional(),
+  courses: z.array(shortName).max(50).default([]),
+  outcomes: z.array(outcomeName).max(100).default([]),
 })
 
 // A filter id must be a plain positive whole number that fits a Postgres INT.
@@ -247,13 +259,26 @@ export function casesRouter() {
   })
 
   // Create a case as a draft: one sim_case row plus its version 1, all-or-nothing.
+  // If a campus, courses or outcomes are given, they are linked to the case in the same
+  // transaction (see saveCaseLinks), so the Cases page filters can find the case.
   router.post('/', async (req, res, next) => {
     const parsed = createCaseBody.safeParse(req.body)
     if (!parsed.success) {
       res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues })
       return
     }
-    const { title, content } = parsed.data
+    const { title, content, campus, courses, outcomes } = parsed.data
+
+    // case_use needs a campus AND a course on every row, so one without the
+    // other can't be saved. Say so instead of quietly dropping it.
+    if (courses.length > 0 && campus === undefined) {
+      res.status(400).json({ error: 'invalid_request', fields: ['campus'] })
+      return
+    }
+    if (campus !== undefined && courses.length === 0) {
+      res.status(400).json({ error: 'invalid_request', fields: ['courses'] })
+      return
+    }
 
     try {
       const created = await withTransaction(async (client) => {
@@ -272,6 +297,9 @@ export function casesRouter() {
         const versionId: number = versionResult.rows[0].id
 
         await client.query('UPDATE sim_case SET current_version_id = $1 WHERE id = $2', [versionId, caseId])
+
+        await saveCaseLinks(client, caseId, versionId, { campus, courses, outcomes })
+
         return { id: caseId, versionId }
       })
       res.status(201).json(created)

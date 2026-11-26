@@ -162,7 +162,7 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
     expect(response.body).toEqual({ error: 'invalid_request', fields })
   })
 
-  test('lookup lists return id and display fields, sorted', async () => {
+  test('lookup lists return id and display fields, sorted, and only values some case uses', async () => {
     const courses = await instructor.get('/api/courses')
     expect(courses.status).toBe(200)
     expect(courses.body).toEqual([
@@ -176,11 +176,29 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
       { id: 9402, name: 'Synthetic Campus South' },
     ])
 
+    // 9303 exists but no case maps to it, so it is not offered.
     const outcomes = await instructor.get('/api/outcomes')
-    expect(outcomes.body.map((row: { id: number }) => row.id)).toEqual([9303, 9301, 9302])
-    expect(outcomes.body[0]).toEqual({
-      id: 9303, framework: 'Another Framework', code: null, description: 'Synthetic outcome without a code',
-    })
+    expect(outcomes.body.map((row: { id: number }) => row.id)).toEqual([9301, 9302])
+    expect(outcomes.body[0]).toEqual({ id: 9301, framework: 'Test Framework', code: 'TF-1', description: 'Synthetic outcome 1' })
+  })
+
+  test('a campus or course that no case uses is not offered, and one that a case uses is', async () => {
+    const unused = await admin.query(
+      `WITH c AS (INSERT INTO campus (name) VALUES ('Synthetic Unused Campus') RETURNING id),
+            k AS (INSERT INTO course (code) VALUES ('UNUSED 000') RETURNING id)
+       SELECT c.id AS campus_id, k.id AS course_id FROM c, k`,
+    )
+    const { campus_id: campusId, course_id: courseId } = unused.rows[0]
+    const campusIds = async () => (await instructor.get('/api/campuses')).body.map((row: { id: number }) => row.id)
+    const courseIds = async () => (await instructor.get('/api/courses')).body.map((row: { id: number }) => row.id)
+    expect(await campusIds()).not.toContain(campusId)
+    expect(await courseIds()).not.toContain(courseId)
+    await admin.query("INSERT INTO case_use (case_id, campus_id, course_id) VALUES (9105, $1, $2)", [campusId, courseId])
+    expect(await campusIds()).toContain(campusId)
+    expect(await courseIds()).toContain(courseId)
+    await admin.query('DELETE FROM case_use WHERE case_id = 9105')
+    await admin.query('DELETE FROM campus WHERE id = $1', [campusId])
+    await admin.query('DELETE FROM course WHERE id = $1', [courseId])
   })
 
   test('NFR-1: list and filtered search return in under 10 seconds with 100 cases', async () => {
@@ -372,4 +390,127 @@ describe.skipIf(!url)('GET /api/cases filters (FR-6)', () => {
       await admin.query('ALTER TABLE sim_case DROP CONSTRAINT synthetic_title_guard')
     }
   })
+
+  // #77: the dropdown options come from the cases people save. Nothing is seeded.
+  describe('campus, courses and outcomes typed into a case (#77)', () => {
+    const typed = {
+      campus: 'Synthetic Typed Campus',
+      courses: ['SYN 101', 'syn  202'],
+      outcomes: ['Synthetic typed outcome one', 'Synthetic typed outcome two'],
+    }
+
+    async function count(table: string, where = 'true', params: unknown[] = []): Promise<number> {
+      return Number((await admin.query(`SELECT count(*) FROM ${table} WHERE ${where}`, params)).rows[0].count)
+    }
+
+    test('saving creates the campus, courses and outcomes it names and links the case', async () => {
+      const created = await instructor.post('/api/cases').send({ title: 'Synthetic typed links', content: {}, ...typed })
+      expect(created.status).toBe(201)
+      const { id, versionId } = created.body
+
+      const uses = await admin.query(
+        `SELECT cp.name AS campus, co.code AS course
+           FROM case_use u JOIN campus cp ON cp.id = u.campus_id JOIN course co ON co.id = u.course_id
+          WHERE u.case_id = $1 ORDER BY co.code`, [id])
+      // Extra spaces are tidied; the author's capital letters are kept.
+      expect(uses.rows).toEqual([
+        { campus: 'Synthetic Typed Campus', course: 'SYN 101' },
+        { campus: 'Synthetic Typed Campus', course: 'syn 202' },
+      ])
+      const mapped = await admin.query(
+        `SELECT o.framework, o.outcome_type, o.code, o.description
+           FROM case_version_outcome m JOIN outcome o ON o.id = m.outcome_id
+          WHERE m.case_version_id = $1 ORDER BY o.description`, [versionId])
+      expect(mapped.rows).toEqual([
+        { framework: 'Case outcomes', outcome_type: 'competency', code: null, description: 'Synthetic typed outcome one' },
+        { framework: 'Case outcomes', outcome_type: 'competency', code: null, description: 'Synthetic typed outcome two' },
+      ])
+    })
+
+    test('the dropdown lists now offer the typed values, and the filters find the case', async () => {
+      const campuses = (await instructor.get('/api/campuses')).body as { id: number; name: string }[]
+      const courses = (await instructor.get('/api/courses')).body as { id: number; code: string }[]
+      const outcomes = (await instructor.get('/api/outcomes')).body as { id: number; framework: string; description: string }[]
+      const campus = campuses.find((row) => row.name === typed.campus)
+      const course = courses.find((row) => row.code === 'SYN 101')
+      const outcome = outcomes.find((row) => row.description === typed.outcomes[0])
+      expect(campus && course && outcome).toBeTruthy()
+      expect(outcome?.framework).toBe('Case outcomes')
+      expect(await titles(`?campus=${campus!.id}`)).toEqual(['Synthetic typed links'])
+      expect(await titles(`?course=${course!.id}&campus=${campus!.id}`)).toEqual(['Synthetic typed links'])
+      expect(await titles(`?outcome=${outcome!.id}`)).toEqual(['Synthetic typed links'])
+    })
+
+    test('typing a value again in other capitals or spacing reuses the row instead of adding one', async () => {
+      const before = { campus: await count('campus'), course: await count('course'), outcome: await count('outcome') }
+      const created = await instructor.post('/api/cases').send({
+        title: 'Synthetic retyped links', content: {},
+        campus: '  synthetic TYPED campus ', courses: ['SYN   101'], outcomes: ['SYNTHETIC typed OUTCOME one'],
+      })
+      expect(created.status).toBe(201)
+      expect({ campus: await count('campus'), course: await count('course'), outcome: await count('outcome') }).toEqual(before)
+      expect(await count('case_use', 'case_id = $1', [created.body.id])).toBe(1)
+      expect(await count('case_version_outcome', 'case_version_id = $1', [created.body.versionId])).toBe(1)
+    })
+
+    test('the same value twice in one case is linked once', async () => {
+      const created = await instructor.post('/api/cases').send({
+        title: 'Synthetic repeated links', content: {},
+        campus: 'Synthetic Typed Campus', courses: ['SYN 101', 'syn 101', ' SYN 101 '], outcomes: ['Same outcome', 'same OUTCOME'],
+      })
+      expect(created.status).toBe(201)
+      expect(await count('case_use', 'case_id = $1', [created.body.id])).toBe(1)
+      expect(await count('case_version_outcome', 'case_version_id = $1', [created.body.versionId])).toBe(1)
+    })
+
+    test('two cases saved at the same moment create a new campus and course once', async () => {
+      const save = (title: string) => instructor.post('/api/cases').send({
+        title, content: {}, campus: 'Synthetic Concurrent Campus', courses: ['SYN 909'], outcomes: ['Synthetic concurrent outcome'],
+      })
+      const responses = await Promise.all([save('Synthetic race one'), save('Synthetic race two')])
+      expect(responses.map((response) => response.status)).toEqual([201, 201])
+      expect(await count('campus', "name = 'Synthetic Concurrent Campus'")).toBe(1)
+      expect(await count('course', "code = 'SYN 909'")).toBe(1)
+      expect(await count('outcome', "description = 'Synthetic concurrent outcome'")).toBe(1)
+    })
+
+    test('a case with no campus, courses or outcomes still saves and adds nothing', async () => {
+      const before = { campus: await count('campus'), course: await count('course'), outcome: await count('outcome') }
+      const created = await instructor.post('/api/cases').send({ title: 'Synthetic unlinked case', content: {} })
+      expect(created.status).toBe(201)
+      expect({ campus: await count('campus'), course: await count('course'), outcome: await count('outcome') }).toEqual(before)
+      expect(await count('case_use', 'case_id = $1', [created.body.id])).toBe(0)
+    })
+
+    test.each([
+      ['a campus without a course', { campus: 'Synthetic Lonely Campus', courses: [] }, ['courses']],
+      ['a course without a campus', { courses: ['SYN LONELY'] }, ['campus']],
+    ])('%s is a 400 that writes nothing', async (_label, links, fields) => {
+      const before = { cases: await count('sim_case'), campus: await count('campus'), course: await count('course') }
+      const response = await instructor.post('/api/cases').send({ title: 'Synthetic rejected links', content: {}, ...links })
+      expect(response.status).toBe(400)
+      expect(response.body).toEqual({ error: 'invalid_request', fields })
+      expect({ cases: await count('sim_case'), campus: await count('campus'), course: await count('course') }).toEqual(before)
+    })
+
+    test('a failure after the links are written rolls back the case and the new lookup rows', async () => {
+      const before = { cases: await count('sim_case'), campus: await count('campus'), course: await count('course') }
+      await admin.query("ALTER TABLE case_use ADD CONSTRAINT synthetic_use_guard CHECK (last_run_date IS NULL AND course_id > 0 AND campus_id <> -1)")
+      await admin.query("CREATE OR REPLACE FUNCTION synthetic_fail() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'synthetic failure'; END $$ LANGUAGE plpgsql")
+      await admin.query("CREATE TRIGGER synthetic_fail_trigger BEFORE INSERT ON case_version_outcome FOR EACH ROW EXECUTE FUNCTION synthetic_fail()")
+      try {
+        const response = await instructor.post('/api/cases').send({
+          title: 'Synthetic rolled back links', content: {}, campus: 'Synthetic Rollback Campus', courses: ['SYN ROLLBACK'], outcomes: ['Synthetic rollback outcome'],
+        })
+        expect(response.status).toBe(500)
+      } finally {
+        await admin.query('DROP TRIGGER synthetic_fail_trigger ON case_version_outcome')
+        await admin.query('DROP FUNCTION synthetic_fail()')
+        await admin.query('ALTER TABLE case_use DROP CONSTRAINT synthetic_use_guard')
+      }
+      expect({ cases: await count('sim_case'), campus: await count('campus'), course: await count('course') }).toEqual(before)
+      expect(await count('campus', "name = 'Synthetic Rollback Campus'")).toBe(0)
+    })
+  })
+
 })

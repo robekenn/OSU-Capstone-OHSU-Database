@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
+import CaseLinks from './CaseLinks'
 import SectionForm from './SectionForm'
 import { formSections, titleProblem } from '../templates/caseSections'
 import type { CaseContent, FieldValue } from '../templates/caseTemplate'
+import { emptyLinkChoices, linksProblem } from '../templates/caseLinks'
+import type { LinkChoices } from '../templates/caseLinks'
+import type { Lookups } from '../pages/CasesPage'
 import '../pages/NewCasePage.css'
 
 type Props = {
@@ -11,13 +15,21 @@ type Props = {
   initialContent?: CaseContent
   readOnlyFields?: ReadonlySet<string>
   cancelTo?: string
-  onSave: (title: string, content: CaseContent, touched: CaseContent) => Promise<void>
+  // Pass the campuses and courses other cases use to show the Campus and Courses inputs
+  // (New case only). Without it the form keeps the plain Campus and Course text fields.
+  suggestions?: Lookups
+  onSave: (title: string, content: CaseContent, touched: CaseContent, choices: LinkChoices) => Promise<void>
 }
 
-export default function CaseForm({ initialTitle = '', initialContent = {}, readOnlyFields, cancelTo, onSave }: Props) {
+// The Campus and Courses inputs replace these two text fields when they are on screen.
+const fieldsReplacedByLinks: ReadonlySet<string> = new Set(['generalInformation.campus', 'generalInformation.course'])
+
+export default function CaseForm({ initialTitle = '', initialContent = {}, readOnlyFields, cancelTo, suggestions, onSave }: Props) {
   const [title, setTitle] = useState(initialTitle)
   const [content, setContent] = useState<CaseContent>(initialContent)
   const [touched, setTouched] = useState<CaseContent>({})
+  const [choices, setChoices] = useState<LinkChoices>(emptyLinkChoices)
+  const [linksError, setLinksError] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [titleError, setTitleError] = useState('')
   const [focusRequest, setFocusRequest] = useState(0)
@@ -28,6 +40,7 @@ export default function CaseForm({ initialTitle = '', initialContent = {}, readO
 
   const editing = cancelTo !== undefined
   const activeSection = formSections[activeIndex]
+  const hiddenFields = suggestions ? fieldsReplacedByLinks : undefined
   const isFirst = activeIndex === 0
   const isLast = activeIndex === formSections.length - 1
 
@@ -73,13 +86,24 @@ export default function CaseForm({ initialTitle = '', initialContent = {}, readO
     }
     setTitleError('')
 
+    if (suggestions) {
+      const linksIssue = linksProblem(choices)
+      if (linksIssue !== '') {
+        setLinksError(linksIssue)
+        setActiveIndex(0)
+        return
+      }
+    }
+    setLinksError('')
+
     setSaving(true)
     try {
-      await onSave(title.trim(), content, touched)
+      await onSave(title.trim(), content, touched, choices)
       if (editing) return
       setSuccessMessage('Case saved as a draft.')
       setTitle('')
       setContent({})
+      setChoices(emptyLinkChoices)
       setActiveIndex(0)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not save the case.')
@@ -130,7 +154,17 @@ export default function CaseForm({ initialTitle = '', initialContent = {}, readO
           </div>
         )}
 
-        <SectionForm formSection={activeSection} content={content} readOnlyFields={readOnlyFields} onChange={setValue} />
+        {isFirst && suggestions && (
+          <CaseLinks suggestions={suggestions} choices={choices} error={linksError} onChange={setChoices} />
+        )}
+
+        <SectionForm
+          formSection={activeSection}
+          content={content}
+          readOnlyFields={readOnlyFields}
+          hiddenFields={hiddenFields}
+          onChange={setValue}
+        />
 
         <div className="section-buttons">
           <button type="button" disabled={isFirst} onClick={() => setActiveIndex(activeIndex - 1)}>
